@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanças A² | Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f8fa; /* A slightly more refined off-white background */
+        }
+
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a0aec0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096;
+        }
+
+        /* Modal styles & animations */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .field-group[hidden] {
+            display: none;
+        }
+        .field-group {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Minimalist table styling */
+        .minimalist-table tbody tr {
+            border-bottom: 1px solid #edf2f7; /* Subtle separator */
+        }
+        .minimalist-table tbody tr:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-800">
+
+    <div id="app" class="flex flex-col lg:flex-row min-h-screen">
+        
+        <!-- ======================= -->
+        <!--   Main Content Area     -->
+        <!-- ======================= -->
+        <main class="w-full lg:flex-1 p-4 sm:p-6 lg:p-8">
+            <header class="flex items-center justify-between mb-8">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-900">Suas Finanças</h1>
+                    <p class="text-slate-500">Acompanhe suas transações mensais.</p>
+                </div>
+                <div class="relative">
+                    <button id="add-transaction-btn" class="bg-slate-900 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-300 flex items-center space-x-2">
+                        <i class="fas fa-plus"></i>
+                        <span>Nova Transação</span>
+                    </button>
+                    <div id="add-transaction-menu" class="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl border border-slate-200 hidden z-20">
+                        <a href="#" data-type="expense" class="add-type-option flex items-center px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-t-lg">
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-rose-100 text-rose-500 mr-3"><i class="fas fa-arrow-up"></i></span>
+                            <div>
+                                <p class="font-medium">Despesa</p>
+                                <p class="text-xs text-slate-500">Registrar um novo gasto</p>
+                            </div>
+                        </a>
+                        <a href="#" data-type="income" class="add-type-option flex items-center px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-b-lg">
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-500 mr-3"><i class="fas fa-arrow-down"></i></span>
+                            <div>
+                                <p class="font-medium">Receita</p>
+                                <p class="text-xs text-slate-500">Registrar um novo ganho</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Month Navigator & Filters -->
+            <div class="mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center bg-white p-1 rounded-lg border border-slate-200">
+                    <button id="prev-month-btn" class="p-2 rounded-md hover:bg-slate-100"><i class="fas fa-chevron-left text-slate-600"></i></button>
+                    <h2 id="current-month-display" class="text-base font-bold text-slate-700 mx-4 w-32 text-center">Outubro 2025</h2>
+                    <button id="next-month-btn" class="p-2 rounded-md hover:bg-slate-100"><i class="fas fa-chevron-right text-slate-600"></i></button>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- Filter Dropdown -->
+                    <div class="relative">
+                        <button id="filter-dropdown-btn" class="flex items-center justify-between w-48 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex items-center">
+                                <span id="filter-color-indicator" class="w-3 h-3 rounded-full bg-slate-500 mr-2"></span>
+                                <span id="filter-text" class="font-medium text-slate-700">Todas</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-slate-500"></i>
+                        </button>
+                        <div id="filter-dropdown-menu" class="absolute mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 hidden z-10">
+                            <a href="#" data-filter="all" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-slate-500 mr-2"></span>
+                                Todas
+                            </a>
+                            <a href="#" data-filter="expense" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 mr-2"></span>
+                                Despesas
+                            </a>
+                             <a href="#" data-filter="income" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span>
+                                Receitas
+                            </a>
+                        </div>
+                    </div>
+                     <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="search-input" placeholder="Pesquisar..." class="w-full md:w-56 pl-10 pr-4 py-2 border border-slate-200 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent sm:text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions Table -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table class="w-full text-sm text-left text-slate-600 minimalist-table">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-4 font-medium">Situação</th>
+                            <th scope="col" class="px-6 py-4 font-medium">Data</th>
+                            <th scope="col" class="px-6 py-4 font-medium">Descrição</th>
+                            <th scope="col" class="px-6 py-4 font-medium">Categoria</th>
+                            <th scope="col" class="px-6 py-4 font-medium text-right">Valor</th>
+                            <th scope="col" class="px-6 py-4 font-medium text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-table-body">
+                        <!-- Table rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- ======================= -->
+        <!--   Right Sidebar (KPIs)  -->
+        <!-- ======================= -->
+        <aside class="w-full lg:w-96 bg-white p-8 border-l border-slate-200">
+            <div class="flex items-center justify-between mb-10">
+                 <div class="flex items-center">
+                    <i class="fas fa-heart text-2xl text-red-500 mr-3"></i>
+                    <span class="font-bold text-xl text-slate-800">Painel Financeiro</span>
+                </div>
+                <button class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center"><i class="fas fa-cog text-slate-500"></i></button>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="space-y-6">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">Saldo Total</p>
+                    <p id="kpi-total-balance" class="text-4xl font-bold text-slate-800">R$ 0,00</p>
+                </div>
+                 <hr class="border-slate-200">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">Receitas (mês)</p>
+                            <p id="kpi-monthly-income" class="text-lg font-bold text-emerald-600">R$ 0,00</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                     <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">Despesas (mês)</p>
+                            <p id="kpi-monthly-expense" class="text-lg font-bold text-rose-600">R$ 0,00</p>
+                        </div>
+                    </div>
+                </div>
+                 <hr class="border-slate-200">
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">Balanço do Mês</p>
+                    <p id="kpi-monthly-balance" class="text-2xl font-bold text-slate-700">R$ 0,00</p>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- ======================= -->
+    <!-- Add/Edit Transaction Modal -->
+    <!-- ======================= -->
+    <div id="transaction-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50 opacity-0">
+        <div class="modal-content bg-white w-full max-w-md rounded-xl shadow-2xl transform scale-95">
+            <div class="flex items-center justify-between p-5 border-b border-slate-200">
+                <h3 id="modal-title" class="text-xl font-bold text-slate-800">Adicionar Transação</h3>
+                <button id="close-modal-btn" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+            </div>
+            <form id="transaction-form" class="p-6 space-y-4">
+                <input type="hidden" id="transaction-id">
+                 <!-- Type select is now hidden but remains in the form for the script to function correctly -->
+                <select id="type" name="type" required class="hidden">
+                    <option value="expense">Despesa</option>
+                    <option value="income">Receita</option>
+                </select>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-slate-700">Descrição</label>
+                    <input type="text" id="description" name="description" required class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-500 focus:border-slate-500">
+                </div>
+                <div>
+                    <label for="amount" class="block text-sm font-medium text-slate-700">Valor (R$)</label>
+                    <input type="number" id="amount" name="amount" step="0.01" required placeholder="Ex: 50.75" class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-500 focus:border-slate-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">Data</label>
+                    <div class="mt-1 grid grid-cols-3 gap-2">
+                        <div>
+                            <label for="date-day" class="text-xs text-slate-500">Dia</label>
+                            <select id="date-day" name="date-day" required class="mt-1 block w-full pl-3 pr-8 py-2 border-slate-300 focus:outline-none focus:ring-slate-500 focus:border-slate-500 rounded-md"></select>
+                        </div>
+                        <div>
+                            <label for="date-month" class="text-xs text-slate-500">Mês</label>
+                            <select id="date-month" name="date-month" required class="mt-1 block w-full pl-3 pr-8 py-2 border-slate-300 focus:outline-none focus:ring-slate-500 focus:border-slate-500 rounded-md"></select>
+                        </div>
+                        <div>
+                            <label for="date-year" class="text-xs text-slate-500">Ano</label>
+                            <select id="date-year" name="date-year" required class="mt-1 block w-full pl-3 pr-8 py-2 border-slate-300 focus:outline-none focus:ring-slate-500 focus:border-slate-500 rounded-md"></select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="category" class="block text-sm font-medium text-slate-700">Categoria</label>
+                    <select id="category" name="category" required class="mt-1 block w-full pl-3 pr-10 py-2 border-slate-300 focus:outline-none focus:ring-slate-500 focus:border-slate-500 rounded-md">
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+
+                <!-- Recurrence/Installment Options -->
+                <div id="payment-options-group">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Frequência</label>
+                    <div class="flex items-center space-x-4">
+                        <label><input type="radio" name="paymentType" value="single" checked class="mr-1 text-slate-600 focus:ring-slate-500">Única</label>
+                        <label><input type="radio" name="paymentType" value="recurring" class="mr-1 text-slate-600 focus:ring-slate-500">Recorrente</label>
+                        <label><input type="radio" name="paymentType" value="installment" class="mr-1 text-slate-600 focus:ring-slate-500">Parcelada</label>
+                    </div>
+                </div>
+                
+                <div id="installments-fields" class="field-group" hidden>
+                    <label for="installments" class="block text-sm font-medium text-slate-700">Número de Parcelas</label>
+                    <input type="number" id="installments" name="installments" min="2" class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-500 focus:border-slate-500">
+                </div>
+
+
+                <div class="pt-4 flex justify-end space-x-3">
+                    <button type="button" id="cancel-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg transition-colors duration-300">Cancelar</button>
+                    <button type="submit" class="bg-slate-900 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================= -->
+    <!-- Confirmation Modal      -->
+    <!-- ======================= -->
+    <div id="confirmation-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50 opacity-0">
+        <div class="modal-content bg-white w-full max-w-sm rounded-xl shadow-2xl transform scale-95 p-6 text-center">
+            <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-4"></i>
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Confirmar Exclusão</h3>
+            <p class="text-slate-600 mb-6">Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirm-cancel-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-6 rounded-lg transition-colors duration-300">Cancelar</button>
+                <button id="confirm-delete-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // ============================
+        //  STATE & DATA
+        // ============================
+        let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+        let displayedDate = new Date();
+        let transactionToDeleteId = null;
+        let currentFilter = 'all'; // 'all', 'income', 'expense'
+
+        const categories = {
+            expense: ['Moradia', 'Alimentação', 'Transporte', 'Contas', 'Lazer', 'Saúde', 'Educação', 'Vestuário', 'Outros'],
+            income: ['Salário', 'Freelance', 'Investimentos', 'Presente', 'Outros']
+        };
+
+        const categoryVisuals = {
+            'Moradia': { icon: 'fa-home', color: 'bg-blue-500' },
+            'Alimentação': { icon: 'fa-utensils', color: 'bg-orange-500' },
+            'Transporte': { icon: 'fa-car', color: 'bg-yellow-500' },
+            'Contas': { icon: 'fa-file-invoice-dollar', color: 'bg-red-500' },
+            'Lazer': { icon: 'fa-film', color: 'bg-pink-500' },
+            'Saúde': { icon: 'fa-heartbeat', color: 'bg-rose-500' },
+            'Educação': { icon: 'fa-graduation-cap', color: 'bg-purple-500' },
+            'Vestuário': { icon: 'fa-tshirt', color: 'bg-teal-500' },
+            'Salário': { icon: 'fa-dollar-sign', color: 'bg-green-500' },
+            'Freelance': { icon: 'fa-briefcase', color: 'bg-emerald-500' },
+            'Investimentos': { icon: 'fa-chart-line', color: 'bg-lime-500' },
+            'Presente': { icon: 'fa-gift', color: 'bg-cyan-500' },
+            'Outros': { icon: 'fa-question-circle', color: 'bg-slate-500' }
+        };
+        
+        const filterVisuals = {
+            'all': { text: 'Todas', color: 'bg-slate-500' },
+            'expense': { text: 'Despesas', color: 'bg-rose-500' },
+            'income': { text: 'Receitas', color: 'bg-emerald-500' }
+        };
+
+        // ============================
+        //  SELECTORS
+        // ============================
+        const transactionModal = document.getElementById('transaction-modal');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const transactionForm = document.getElementById('transaction-form');
+        const typeSelect = document.getElementById('type');
+        const categorySelect = document.getElementById('category');
+        const transactionIdInput = document.getElementById('transaction-id');
+        const transactionsTableBody = document.getElementById('transactions-table-body');
+        const currentMonthDisplay = document.getElementById('current-month-display');
+        const installmentsFields = document.getElementById('installments-fields');
+        const paymentTypeRadios = document.querySelectorAll('input[name="paymentType"]');
+        const paymentOptionsGroup = document.getElementById('payment-options-group');
+        const filterDropdownBtn = document.getElementById('filter-dropdown-btn');
+        const filterDropdownMenu = document.getElementById('filter-dropdown-menu');
+        const filterOptions = document.querySelectorAll('.filter-option');
+        const addTransactionBtn = document.getElementById('add-transaction-btn');
+        const addTransactionMenu = document.getElementById('add-transaction-menu');
+        const dateDaySelect = document.getElementById('date-day');
+        const dateMonthSelect = document.getElementById('date-month');
+        const dateYearSelect = document.getElementById('date-year');
+
+
+        // ============================
+        //  HELPER FUNCTIONS
+        // ============================
+        const saveTransactions = () => localStorage.setItem('transactions', JSON.stringify(transactions));
+        const formatCurrency = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formatDate = dateString => {
+            const date = new Date(dateString + 'T00:00:00');
+            // This correctly formats the date to DD/MM/YYYY for the pt-BR locale
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        };
+        const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+
+        // ============================
+        //  DATE SELECTOR LOGIC
+        // ============================
+        const populateDays = () => {
+            const selectedMonth = parseInt(dateMonthSelect.value);
+            const selectedYear = parseInt(dateYearSelect.value);
+            const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+            const currentDay = dateDaySelect.value;
+            
+            dateDaySelect.innerHTML = '';
+            for (let i = 1; i <= daysInMonth; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                dateDaySelect.appendChild(option);
+            }
+            
+            // try to keep the selected day if it's valid
+            if (currentDay <= daysInMonth) {
+                dateDaySelect.value = currentDay;
+            }
+        };
+
+        const populateDateSelectors = () => {
+            // Populate years
+            const currentYear = new Date().getFullYear();
+            dateYearSelect.innerHTML = '';
+            for (let i = currentYear + 1; i >= currentYear - 5; i--) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                dateYearSelect.appendChild(option);
+            }
+
+            // Populate months
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            dateMonthSelect.innerHTML = '';
+            months.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index; // 0-11
+                option.textContent = month;
+                dateMonthSelect.appendChild(option);
+            });
+
+            // Add event listeners to update days when month/year changes
+            dateMonthSelect.addEventListener('change', populateDays);
+            dateYearSelect.addEventListener('change', populateDays);
+        };
+
+
+        // ============================
+        //  MODAL LOGIC
+        // ============================
+        const openTransactionModal = (type = null, transaction = null) => {
+            transactionForm.reset();
+            document.querySelector('input[name="paymentType"][value="single"]').checked = true;
+            installmentsFields.hidden = true;
+
+            if (transaction) { // Editing existing transaction
+                modalTitle.textContent = 'Editar Transação';
+                transactionIdInput.value = transaction.id;
+                document.getElementById('description').value = transaction.description;
+                document.getElementById('amount').value = transaction.amount;
+                
+                const date = new Date(transaction.date + 'T00:00:00');
+                dateYearSelect.value = date.getFullYear();
+                dateMonthSelect.value = date.getMonth();
+                populateDays(); // Important to update days before setting value
+                dateDaySelect.value = date.getDate();
+
+                typeSelect.value = transaction.type;
+                paymentOptionsGroup.hidden = true;
+            } else { // Adding new transaction
+                modalTitle.textContent = 'Adicionar Transação';
+                transactionIdInput.value = '';
+                
+                const today = new Date();
+                dateYearSelect.value = today.getFullYear();
+                dateMonthSelect.value = today.getMonth();
+                populateDays();
+                dateDaySelect.value = today.getDate();
+
+                if (type) {
+                    typeSelect.value = type;
+                }
+                paymentOptionsGroup.hidden = false;
+            }
+            updateCategoryOptions();
+            if(transaction) categorySelect.value = transaction.category; // set category after options are updated
+            
+            transactionModal.classList.remove('hidden');
+            setTimeout(() => {
+                transactionModal.classList.remove('opacity-0');
+                transactionModal.querySelector('.modal-content').classList.remove('scale-95');
+            }, 10);
+        };
+
+        const closeTransactionModal = () => {
+            transactionModal.classList.add('opacity-0');
+            transactionModal.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => transactionModal.classList.add('hidden'), 300);
+        };
+        
+        const openConfirmationModal = (id) => {
+            transactionToDeleteId = id;
+            confirmationModal.classList.remove('hidden');
+            setTimeout(() => {
+                confirmationModal.classList.remove('opacity-0');
+                confirmationModal.querySelector('.modal-content').classList.remove('scale-95');
+            }, 10);
+        };
+
+        const closeConfirmationModal = () => {
+            confirmationModal.classList.add('opacity-0');
+            confirmationModal.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => confirmationModal.classList.add('hidden'), 300);
+        };
+
+
+        // ============================
+        //  UI RENDERING
+        // ============================
+        const updateCategoryOptions = () => {
+            const currentType = typeSelect.value;
+            categorySelect.innerHTML = '';
+            categories[currentType].forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+        };
+
+        const renderKPIs = () => {
+            const currentMonth = displayedDate.getMonth();
+            const currentYear = displayedDate.getFullYear();
+
+            // IMPORTANTE: Os KPIs são calculados usando apenas transações com status "pago".
+            // Transações pendentes não afetam o saldo ou os totais do mês.
+            const paidTransactionsForKPIs = transactions.filter(t => t.status === 'paid');
+            const totalBalance = paidTransactionsForKPIs.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+
+            const monthlyPaidTransactions = paidTransactionsForKPIs.filter(t => {
+                const tDate = new Date(t.date + 'T00:00:00');
+                return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+            });
+            
+            const monthlyIncome = monthlyPaidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+            const monthlyExpense = monthlyPaidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+            const monthlyBalance = monthlyIncome - monthlyExpense;
+
+            document.getElementById('kpi-total-balance').textContent = formatCurrency(totalBalance);
+            document.getElementById('kpi-monthly-income').textContent = formatCurrency(monthlyIncome);
+            document.getElementById('kpi-monthly-expense').textContent = formatCurrency(monthlyExpense);
+            document.getElementById('kpi-monthly-balance').textContent = formatCurrency(monthlyBalance);
+        };
+        
+        const renderTransactionsTable = () => {
+            transactionsTableBody.innerHTML = '';
+            currentMonthDisplay.textContent = getMonthYearString(displayedDate);
+            
+            const currentMonth = displayedDate.getMonth();
+            const currentYear = displayedDate.getFullYear();
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            const filteredTransactions = transactions
+                .filter(t => { // Filter by Month
+                    const tDate = new Date(t.date + 'T00:00:00');
+                    return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+                })
+                .filter(t => { // Filter by Type (income/expense/all)
+                    if (currentFilter === 'all') return true;
+                    return t.type === currentFilter;
+                })
+                .filter(t => { // Filter by Search Term
+                    return t.description.toLowerCase().includes(searchTerm)
+                })
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (filteredTransactions.length === 0) {
+                transactionsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-12">Nenhuma transação encontrada.</td></tr>`;
+                return;
+            }
+
+            filteredTransactions.forEach(t => {
+                const visual = categoryVisuals[t.category] || categoryVisuals['Outros'];
+                const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
+                
+                let borderColorClass = 'border-slate-500';
+                if (t.type === 'income') borderColorClass = 'border-emerald-500';
+                if (t.type === 'expense') borderColorClass = 'border-rose-500';
+
+                let valueColorClass = 'text-slate-800';
+                let valuePrefix = '';
+                if(t.type === 'income') {
+                    valueColorClass = 'text-emerald-600';
+                    valuePrefix = '+';
+                }
+                 if(t.type === 'expense') {
+                    valueColorClass = 'text-rose-600';
+                    valuePrefix = '-';
+                }
+
+                const row = `
+                    <tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}">
+                        <td class="px-6 py-4">
+                             <button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}">
+                                <i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i>
+                            </button>
+                        </td>
+                        <td class="px-6 py-4">${formatDate(t.date)}</td>
+                        <td class="px-6 py-4 font-medium text-slate-800 flex items-center">
+                            ${t.description} ${isRecurringIcon}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2">
+                                    <i class="fas ${visual.icon}"></i>
+                                </div>
+                                ${t.category}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 font-semibold text-right ${valueColorClass}">
+                            ${valuePrefix} ${formatCurrency(t.amount)}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button>
+                            <button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    </tr>
+                `;
+                transactionsTableBody.innerHTML += row;
+            });
+        };
+
+        const updateUI = () => {
+            renderKPIs();
+            renderTransactionsTable();
+        };
+
+        // ============================
+        //  EVENT LISTENERS
+        // ============================
+        document.getElementById('close-modal-btn').addEventListener('click', closeTransactionModal);
+        document.getElementById('cancel-btn').addEventListener('click', closeTransactionModal);
+        transactionModal.addEventListener('click', (e) => {
+            if (e.target === transactionModal) closeTransactionModal();
+        });
+        
+        typeSelect.addEventListener('change', updateCategoryOptions);
+        
+        paymentTypeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                installmentsFields.hidden = e.target.value !== 'installment';
+            });
+        });
+        
+        // Add Transaction Dropdown Logic
+        addTransactionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            addTransactionMenu.classList.toggle('hidden');
+        });
+        addTransactionMenu.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = e.target.closest('.add-type-option');
+            if(!target) return;
+
+            const type = target.dataset.type;
+            if(type) {
+                openTransactionModal(type, null);
+                addTransactionMenu.classList.add('hidden');
+            }
+        });
+
+
+        // Filter Dropdown Logic
+        filterDropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            filterDropdownMenu.classList.toggle('hidden');
+        });
+        
+        filterOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentFilter = e.currentTarget.dataset.filter;
+                
+                // Update button UI
+                const visual = filterVisuals[currentFilter];
+                document.getElementById('filter-text').textContent = visual.text;
+                const colorIndicator = document.getElementById('filter-color-indicator');
+                colorIndicator.className = `w-3 h-3 rounded-full mr-2 ${visual.color}`;
+                
+                filterDropdownMenu.classList.add('hidden');
+                updateUI();
+            });
+        });
+        
+        // General click listener to close dropdowns
+        document.addEventListener('click', (e) => {
+            if (!filterDropdownBtn.contains(e.target) && !filterDropdownMenu.contains(e.target)) {
+                filterDropdownMenu.classList.add('hidden');
+            }
+            if (!addTransactionBtn.contains(e.target) && !addTransactionMenu.contains(e.target)) {
+                addTransactionMenu.classList.add('hidden');
+            }
+        });
+
+        transactionForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const id = parseInt(transactionIdInput.value);
+            const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
+            
+            const day = String(dateDaySelect.value).padStart(2, '0');
+            const month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0'); // JS months are 0-11
+            const year = dateYearSelect.value;
+            const constructedDate = `${year}-${month}-${day}`;
+
+            const baseTransactionData = {
+                description: document.getElementById('description').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                date: constructedDate,
+                type: typeSelect.value,
+                category: categorySelect.value,
+            };
+
+            if (id) { 
+                const index = transactions.findIndex(t => t.id === id);
+                const originalPaymentInfo = {
+                    paymentType: transactions[index].paymentType,
+                    installmentGroupId: transactions[index].installmentGroupId
+                };
+                transactions[index] = { ...transactions[index], ...baseTransactionData, ...originalPaymentInfo };
+            } else { 
+                switch (paymentType) {
+                    case 'installment':
+                        const totalInstallments = parseInt(document.getElementById('installments').value);
+                        if (!totalInstallments || totalInstallments < 2) {
+                            alert('Por favor, insira um número de parcelas válido (mínimo 2).');
+                            return;
+                        }
+                        const installmentGroupId = Date.now();
+                        const startDate = new Date(constructedDate + 'T00:00:00');
+                        
+                        for (let i = 1; i <= totalInstallments; i++) {
+                            const installmentDate = new Date(startDate);
+                            installmentDate.setMonth(startDate.getMonth() + (i - 1));
+                            
+                            transactions.push({
+                                id: Date.now() + i,
+                                ...baseTransactionData,
+                                description: `${baseTransactionData.description} (${i}/${totalInstallments})`,
+                                date: installmentDate.toISOString().split('T')[0],
+                                status: 'pending',
+                                paymentType: 'installment',
+                                installmentGroupId: installmentGroupId
+                            });
+                        }
+                        break;
+                    
+                    case 'recurring':
+                        transactions.push({ id: Date.now(), ...baseTransactionData, status: 'pending', paymentType: 'recurring' });
+                        break;
+
+                    case 'single':
+                    default:
+                        transactions.push({ id: Date.now(), ...baseTransactionData, status: 'paid', paymentType: 'single' });
+                        break;
+                }
+            }
+            
+            saveTransactions();
+            updateUI();
+            closeTransactionModal();
+        });
+
+        transactionsTableBody.addEventListener('click', e => {
+            const editBtn = e.target.closest('.edit-btn');
+            const deleteBtn = e.target.closest('.delete-btn');
+            const statusBtn = e.target.closest('.status-btn');
+            
+            if (editBtn) {
+                const id = parseInt(editBtn.dataset.id);
+                const transaction = transactions.find(t => t.id === id);
+                openTransactionModal(null, transaction);
+            }
+            if (deleteBtn) {
+                const id = parseInt(deleteBtn.dataset.id);
+                openConfirmationModal(id);
+            }
+            if (statusBtn) {
+                const id = parseInt(statusBtn.dataset.id);
+                const transaction = transactions.find(t => t.id === id);
+                if (transaction) {
+                    transaction.status = transaction.status === 'paid' ? 'pending' : 'paid';
+                    saveTransactions();
+                    updateUI();
+                }
+            }
+        });
+        
+        document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmationModal);
+        confirmationModal.addEventListener('click', (e) => {
+            if (e.target === confirmationModal) closeConfirmationModal();
+        });
+        
+        document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+            if (transactionToDeleteId) {
+                // Remove the transaction from the main array.
+                transactions = transactions.filter(t => t.id !== transactionToDeleteId);
+                
+                // Salva o novo estado das transações.
+                saveTransactions();
+                
+                // Ponto crucial: Atualiza toda a interface (KPIs e tabela) em tempo real.
+                // Esta função recalcula todos os saldos com base na lista de transações atualizada.
+                updateUI();
+                
+                // Fecha o pop-up de confirmação.
+                closeConfirmationModal();
+                transactionToDeleteId = null;
+            }
+        });
+
+        document.getElementById('prev-month-btn').addEventListener('click', () => {
+            displayedDate.setMonth(displayedDate.getMonth() - 1);
+            updateUI();
+        });
+        document.getElementById('next-month-btn').addEventListener('click', () => {
+            displayedDate.setMonth(displayedDate.getMonth() + 1);
+            updateUI();
+        });
+
+        document.getElementById('search-input').addEventListener('input', updateUI);
+
+        // ============================
+        //  INITIALIZATION
+        // ============================
+        populateDateSelectors();
+
+        if (transactions.length === 0) {
+            const today = new Date();
+            const fifthDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0];
+            transactions = [
+                { id: 1, description: 'Salário - Você', amount: 4500, type: 'income', category: 'Salário', date: fifthDayOfMonth, status: 'paid', paymentType: 'recurring' },
+                { id: 2, description: 'Aluguel', amount: 1800, type: 'expense', category: 'Moradia', date: new Date(today.getFullYear(), today.getMonth(), 10).toISOString().split('T')[0], status: 'pending', paymentType: 'recurring' },
+                { id: 4, description: 'Supermercado', amount: 950.50, type: 'expense', category: 'Alimentação', date: new Date(today.getFullYear(), today.getMonth(), 2).toISOString().split('T')[0], status: 'paid', paymentType: 'single' },
+            ];
+            saveTransactions();
+        }
+        
+        updateUI();
+    });
+    </script>
+</body>
+</html>

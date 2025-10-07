@@ -167,7 +167,7 @@
 
     </div>
 
-    <!-- Modals (Add/Edit, Confirmation) remain the same -->
+    <!-- Modals (Add/Edit, Confirmation) -->
     <div id="transaction-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50 opacity-0">
         <div class="modal-content bg-white w-full max-w-md rounded-xl shadow-2xl transform scale-95">
             <div class="flex items-center justify-between p-5 border-b border-slate-200">
@@ -247,296 +247,314 @@
         import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
 
-        // ============================
-        // FIREBASE CONFIGURATION
-        // ============================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCVrSaWM7MH2ObkezY9ZAoL0cvu6H2hQBw",
-            authDomain: "roo-code-471523.firebaseapp.com",
-            projectId: "roo-code-471523",
-            storageBucket: "roo-code-471523.firebasestorage.app",
-            messagingSenderId: "616125709991",
-            appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
-        };
+        document.addEventListener('DOMContentLoaded', () => {
+            // ============================
+            // FIREBASE CONFIGURATION
+            // ============================
+            const firebaseConfig = {
+                apiKey: "AIzaSyCVrSaWM7MH2ObkezY9ZAoL0cvu6H2hQBw",
+                authDomain: "roo-code-471523.firebaseapp.com",
+                projectId: "roo-code-471523",
+                storageBucket: "roo-code-471523.firebasestorage.app",
+                messagingSenderId: "616125709991",
+                appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
+            };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+            // Initialize Firebase
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
 
-        // ============================
-        //  STATE & DATA
-        // ============================
-        let transactions = [];
-        let displayedDate = new Date();
-        let transactionToDeleteId = null;
-        let currentFilter = 'all';
-        let coupleId = localStorage.getItem('coupleId');
-        let transactionsUnsubscribe = null; // To detach listener when changing coupleId
+            // ============================
+            //  STATE & DATA
+            // ============================
+            let transactions = [];
+            let displayedDate = new Date();
+            let transactionToDeleteId = null;
+            let currentFilter = 'all';
+            let coupleId = localStorage.getItem('coupleId');
+            let transactionsUnsubscribe = null; 
 
-        const categories = { /* ... (same as before) ... */ };
-        const categoryVisuals = { /* ... (same as before) ... */ };
-        const filterVisuals = { /* ... (same as before) ... */ };
-        
-        // Populate categories and visuals
-        Object.assign(categories, { expense: ['Moradia', 'Alimentação', 'Transporte', 'Contas', 'Lazer', 'Saúde', 'Educação', 'Vestuário', 'Outros'], income: ['Salário', 'Freelance', 'Investimentos', 'Presente', 'Outros'] });
-        Object.assign(categoryVisuals, { 'Moradia': { icon: 'fa-home', color: 'bg-blue-500' }, 'Alimentação': { icon: 'fa-utensils', color: 'bg-orange-500' }, 'Transporte': { icon: 'fa-car', color: 'bg-yellow-500' }, 'Contas': { icon: 'fa-file-invoice-dollar', color: 'bg-red-500' }, 'Lazer': { icon: 'fa-film', color: 'bg-pink-500' }, 'Saúde': { icon: 'fa-heartbeat', color: 'bg-rose-500' }, 'Educação': { icon: 'fa-graduation-cap', color: 'bg-purple-500' }, 'Vestuário': { icon: 'fa-tshirt', color: 'bg-teal-500' }, 'Salário': { icon: 'fa-dollar-sign', color: 'bg-green-500' }, 'Freelance': { icon: 'fa-briefcase', color: 'bg-emerald-500' }, 'Investimentos': { icon: 'fa-chart-line', color: 'bg-lime-500' }, 'Presente': { icon: 'fa-gift', color: 'bg-cyan-500' }, 'Outros': { icon: 'fa-question-circle', color: 'bg-slate-500' } });
-        Object.assign(filterVisuals, { 'all': { text: 'Todas', color: 'bg-slate-500' }, 'expense': { text: 'Despesas', color: 'bg-rose-500' }, 'income': { text: 'Receitas', color: 'bg-emerald-500' } });
+            const categories = { 
+                expense: ['Moradia', 'Alimentação', 'Transporte', 'Contas', 'Lazer', 'Saúde', 'Educação', 'Vestuário', 'Outros'], 
+                income: ['Salário', 'Freelance', 'Investimentos', 'Presente', 'Outros'] 
+            };
+            const categoryVisuals = { 'Moradia': { icon: 'fa-home', color: 'bg-blue-500' }, 'Alimentação': { icon: 'fa-utensils', color: 'bg-orange-500' }, 'Transporte': { icon: 'fa-car', color: 'bg-yellow-500' }, 'Contas': { icon: 'fa-file-invoice-dollar', color: 'bg-red-500' }, 'Lazer': { icon: 'fa-film', color: 'bg-pink-500' }, 'Saúde': { icon: 'fa-heartbeat', color: 'bg-rose-500' }, 'Educação': { icon: 'fa-graduation-cap', color: 'bg-purple-500' }, 'Vestuário': { icon: 'fa-tshirt', color: 'bg-teal-500' }, 'Salário': { icon: 'fa-dollar-sign', color: 'bg-green-500' }, 'Freelance': { icon: 'fa-briefcase', color: 'bg-emerald-500' }, 'Investimentos': { icon: 'fa-chart-line', color: 'bg-lime-500' }, 'Presente': { icon: 'fa-gift', color: 'bg-cyan-500' }, 'Outros': { icon: 'fa-question-circle', color: 'bg-slate-500' } };
+            const filterVisuals = { 'all': { text: 'Todas', color: 'bg-slate-500' }, 'expense': { text: 'Despesas', color: 'bg-rose-500' }, 'income': { text: 'Receitas', color: 'bg-emerald-500' } };
 
-        // Selectors
-        const { getElementById, querySelectorAll, querySelector } = document;
-        const transactionModal = getElementById('transaction-modal'), confirmationModal = getElementById('confirmation-modal'), modalTitle = getElementById('modal-title'), transactionForm = getElementById('transaction-form'), typeSelect = getElementById('type'), categorySelect = getElementById('category'), transactionIdInput = getElementById('transaction-id'), transactionsTableBody = getElementById('transactions-table-body'), currentMonthDisplay = getElementById('current-month-display'), installmentsFields = getElementById('installments-fields'), paymentOptionsGroup = getElementById('payment-options-group'), filterDropdownBtn = getElementById('filter-dropdown-btn'), filterDropdownMenu = getElementById('filter-dropdown-menu'), addTransactionBtn = getElementById('add-transaction-btn'), addTransactionMenu = getElementById('add-transaction-menu'), dateDaySelect = getElementById('date-day'), dateMonthSelect = getElementById('date-month'), dateYearSelect = getElementById('date-year'), coupleIdContainer = getElementById('couple-id-container'), joinCoupleContainer = getElementById('join-couple-container'), coupleIdDisplay = getElementById('couple-id-display');
-        const paymentTypeRadios = querySelectorAll('input[name="paymentType"]'), filterOptions = querySelectorAll('.filter-option');
-        
-        // Helper functions
-        const formatCurrency = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
-        
-        // UI Update functions
-        const updateUI = () => { renderKPIs(); renderTransactionsTable(); };
-        const renderKPIs = () => {
-            const currentMonth = displayedDate.getMonth();
-            const currentYear = displayedDate.getFullYear();
-            const paidTransactionsForKPIs = transactions.filter(t => t.status === 'paid');
-            const totalBalance = paidTransactionsForKPIs.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
-            const monthlyPaidTransactions = paidTransactionsForKPIs.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; });
-            const monthlyIncome = monthlyPaidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-            const monthlyExpense = monthlyPaidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-            const monthlyBalance = monthlyIncome - monthlyExpense;
-            getElementById('kpi-total-balance').textContent = formatCurrency(totalBalance);
-            getElementById('kpi-monthly-income').textContent = formatCurrency(monthlyIncome);
-            getElementById('kpi-monthly-expense').textContent = formatCurrency(monthlyExpense);
-            getElementById('kpi-monthly-balance').textContent = formatCurrency(monthlyBalance);
-        };
-        const renderTransactionsTable = () => {
-            transactionsTableBody.innerHTML = '';
-            currentMonthDisplay.textContent = getMonthYearString(displayedDate);
-            const currentMonth = displayedDate.getMonth();
-            const currentYear = displayedDate.getFullYear();
-            const searchTerm = getElementById('search-input').value.toLowerCase();
-            const filteredTransactions = transactions.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; }).filter(t => currentFilter === 'all' || t.type === currentFilter).filter(t => t.description.toLowerCase().includes(searchTerm)).sort((a, b) => new Date(b.date) - new Date(a.date));
-            if (filteredTransactions.length === 0) { transactionsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-12">Nenhuma transação encontrada.</td></tr>`; return; }
-            filteredTransactions.forEach(t => {
-                const visual = categoryVisuals[t.category] || categoryVisuals['Outros'];
-                const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
-                let borderColorClass = 'border-slate-500'; if (t.type === 'income') borderColorClass = 'border-emerald-500'; if (t.type === 'expense') borderColorClass = 'border-rose-500';
-                let valueColorClass = 'text-slate-800', valuePrefix = ''; if (t.type === 'income') { valueColorClass = 'text-emerald-600'; valuePrefix = '+'; } if (t.type === 'expense') { valueColorClass = 'text-rose-600'; valuePrefix = '-'; }
-                const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button></td></tr>`;
-                transactionsTableBody.innerHTML += row;
-            });
-        };
+            // Selectors
+            const transactionModal = document.getElementById('transaction-modal');
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const transactionForm = document.getElementById('transaction-form');
+            const typeSelect = document.getElementById('type');
+            const categorySelect = document.getElementById('category');
+            const transactionIdInput = document.getElementById('transaction-id');
+            const transactionsTableBody = document.getElementById('transactions-table-body');
+            const currentMonthDisplay = document.getElementById('current-month-display');
+            const installmentsFields = document.getElementById('installments-fields');
+            const paymentOptionsGroup = document.getElementById('payment-options-group');
+            const filterDropdownBtn = document.getElementById('filter-dropdown-btn');
+            const filterDropdownMenu = document.getElementById('filter-dropdown-menu');
+            const addTransactionBtn = document.getElementById('add-transaction-btn');
+            const addTransactionMenu = document.getElementById('add-transaction-menu');
+            const dateDaySelect = document.getElementById('date-day');
+            const dateMonthSelect = document.getElementById('date-month');
+            const dateYearSelect = document.getElementById('date-year');
+            const coupleIdContainer = document.getElementById('couple-id-container');
+            const joinCoupleContainer = document.getElementById('join-couple-container');
+            const coupleIdDisplay = document.getElementById('couple-id-display');
+            const paymentTypeRadios = document.querySelectorAll('input[name="paymentType"]');
+            const filterOptions = document.querySelectorAll('.filter-option');
+            
+            // Helper functions
+            const formatCurrency = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+            
+            // UI Update functions
+            const updateUI = () => { renderKPIs(); renderTransactionsTable(); };
+            const renderKPIs = () => {
+                const currentMonth = displayedDate.getMonth();
+                const currentYear = displayedDate.getFullYear();
+                const paidTransactionsForKPIs = transactions.filter(t => t.status === 'paid');
+                const totalBalance = paidTransactionsForKPIs.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+                const monthlyPaidTransactions = paidTransactionsForKPIs.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; });
+                const monthlyIncome = monthlyPaidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+                const monthlyExpense = monthlyPaidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+                const monthlyBalance = monthlyIncome - monthlyExpense;
+                document.getElementById('kpi-total-balance').textContent = formatCurrency(totalBalance);
+                document.getElementById('kpi-monthly-income').textContent = formatCurrency(monthlyIncome);
+                document.getElementById('kpi-monthly-expense').textContent = formatCurrency(monthlyExpense);
+                document.getElementById('kpi-monthly-balance').textContent = formatCurrency(monthlyBalance);
+            };
+            const renderTransactionsTable = () => {
+                transactionsTableBody.innerHTML = '';
+                currentMonthDisplay.textContent = getMonthYearString(displayedDate);
+                const currentMonth = displayedDate.getMonth();
+                const currentYear = displayedDate.getFullYear();
+                const searchTerm = document.getElementById('search-input').value.toLowerCase();
+                const filteredTransactions = transactions.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; }).filter(t => currentFilter === 'all' || t.type === currentFilter).filter(t => t.description.toLowerCase().includes(searchTerm)).sort((a, b) => new Date(b.date) - new Date(a.date));
+                if (filteredTransactions.length === 0) { transactionsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-12">Nenhuma transação encontrada.</td></tr>`; return; }
+                filteredTransactions.forEach(t => {
+                    const visual = categoryVisuals[t.category] || categoryVisuals['Outros'];
+                    const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
+                    let borderColorClass = 'border-slate-500'; if (t.type === 'income') borderColorClass = 'border-emerald-500'; if (t.type === 'expense') borderColorClass = 'border-rose-500';
+                    let valueColorClass = 'text-slate-800', valuePrefix = ''; if (t.type === 'income') { valueColorClass = 'text-emerald-600'; valuePrefix = '+'; } if (t.type === 'expense') { valueColorClass = 'text-rose-600'; valuePrefix = '-'; }
+                    const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button></td></tr>`;
+                    transactionsTableBody.innerHTML += row;
+                });
+            };
 
-        // Date selector functions
-        const populateDays = () => {
-            const selectedMonth = parseInt(dateMonthSelect.value);
-            const selectedYear = parseInt(dateYearSelect.value);
-            const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-            const currentDay = dateDaySelect.value;
-            dateDaySelect.innerHTML = '';
-            for (let i = 1; i <= daysInMonth; i++) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateDaySelect.appendChild(option); }
-            if (currentDay <= daysInMonth) { dateDaySelect.value = currentDay; }
-        };
-        const populateDateSelectors = () => {
-            const currentYear = new Date().getFullYear();
-            dateYearSelect.innerHTML = '';
-            for (let i = currentYear + 1; i >= currentYear - 5; i--) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateYearSelect.appendChild(option); }
-            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-            dateMonthSelect.innerHTML = '';
-            months.forEach((month, index) => { const option = document.createElement('option'); option.value = index; option.textContent = month; dateMonthSelect.appendChild(option); });
-            dateMonthSelect.addEventListener('change', populateDays);
-            dateYearSelect.addEventListener('change', populateDays);
-        };
+            // Date selector functions
+            const populateDays = () => {
+                const selectedMonth = parseInt(dateMonthSelect.value);
+                const selectedYear = parseInt(dateYearSelect.value);
+                const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+                const currentDay = dateDaySelect.value;
+                dateDaySelect.innerHTML = '';
+                for (let i = 1; i <= daysInMonth; i++) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateDaySelect.appendChild(option); }
+                if (currentDay <= daysInMonth) { dateDaySelect.value = currentDay; }
+            };
+            const populateDateSelectors = () => {
+                const currentYear = new Date().getFullYear();
+                dateYearSelect.innerHTML = '';
+                for (let i = currentYear + 1; i >= currentYear - 5; i--) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateYearSelect.appendChild(option); }
+                const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                dateMonthSelect.innerHTML = '';
+                months.forEach((month, index) => { const option = document.createElement('option'); option.value = index; option.textContent = month; dateMonthSelect.appendChild(option); });
+                dateMonthSelect.addEventListener('change', populateDays);
+                dateYearSelect.addEventListener('change', populateDays);
+            };
 
-        // Modal Logic functions
-        const openTransactionModal = (type, transaction) => {
-            transactionForm.reset();
-            querySelector('input[name="paymentType"][value="single"]').checked = true;
-            installmentsFields.hidden = true;
-            if (transaction) {
-                modalTitle.textContent = 'Editar Transação';
-                transactionIdInput.value = transaction.id;
-                getElementById('description').value = transaction.description;
-                getElementById('amount').value = transaction.amount;
-                const date = new Date(transaction.date + 'T00:00:00');
-                dateYearSelect.value = date.getFullYear();
-                dateMonthSelect.value = date.getMonth();
-                populateDays();
-                dateDaySelect.value = date.getDate();
-                typeSelect.value = transaction.type;
-                paymentOptionsGroup.hidden = true;
-            } else {
-                modalTitle.textContent = 'Adicionar Transação';
-                transactionIdInput.value = '';
-                const today = new Date();
-                dateYearSelect.value = today.getFullYear();
-                dateMonthSelect.value = today.getMonth();
-                populateDays();
-                dateDaySelect.value = today.getDate();
-                if (type) { typeSelect.value = type; }
-                paymentOptionsGroup.hidden = false;
-            }
-            updateCategoryOptions();
-            if(transaction) categorySelect.value = transaction.category;
-            transactionModal.classList.remove('hidden');
-            setTimeout(() => { transactionModal.classList.remove('opacity-0'); transactionModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
-        };
-        const closeTransactionModal = () => {
-            transactionModal.classList.add('opacity-0');
-            transactionModal.querySelector('.modal-content').classList.add('scale-95');
-            setTimeout(() => transactionModal.classList.add('hidden'), 300);
-        };
-        const openConfirmationModal = (id) => {
-            transactionToDeleteId = id;
-            confirmationModal.classList.remove('hidden');
-            setTimeout(() => { confirmationModal.classList.remove('opacity-0'); confirmationModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
-        };
-        const closeConfirmationModal = () => {
-            confirmationModal.classList.add('opacity-0');
-            confirmationModal.querySelector('.modal-content').classList.add('scale-95');
-            setTimeout(() => confirmationModal.classList.add('hidden'), 300);
-        };
-        const updateCategoryOptions = () => {
-            const currentType = typeSelect.value;
-            categorySelect.innerHTML = '';
-            categories[currentType].forEach(cat => { const option = document.createElement('option'); option.value = cat; option.textContent = cat; categorySelect.appendChild(option); });
-        };
-
-        // ============================
-        //  FIREBASE LOGIC
-        // ============================
-        async function setupRealtimeListener(id) {
-            if (transactionsUnsubscribe) { transactionsUnsubscribe(); }
-            const transactionsRef = collection(db, "couples", id, "transactions");
-            transactionsUnsubscribe = onSnapshot(transactionsRef, (snapshot) => {
-                transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateUI();
-            });
-        }
-
-        async function startAppSession() {
-            await signInAnonymously(auth);
-            if (coupleId) {
-                const coupleDoc = await getDoc(doc(db, "couples", coupleId));
-                if (coupleDoc.exists()) {
-                    await setupRealtimeListener(coupleId);
-                    coupleIdDisplay.textContent = coupleId;
-                    coupleIdContainer.classList.remove('hidden');
-                    joinCoupleContainer.classList.add('hidden');
+            // Modal Logic functions
+            const openTransactionModal = (type, transaction) => {
+                transactionForm.reset();
+                document.querySelector('input[name="paymentType"][value="single"]').checked = true;
+                installmentsFields.hidden = true;
+                if (transaction) {
+                    modalTitle.textContent = 'Editar Transação';
+                    transactionIdInput.value = transaction.id;
+                    document.getElementById('description').value = transaction.description;
+                    document.getElementById('amount').value = transaction.amount;
+                    const date = new Date(transaction.date + 'T00:00:00');
+                    dateYearSelect.value = date.getFullYear();
+                    dateMonthSelect.value = date.getMonth();
+                    populateDays();
+                    dateDaySelect.value = date.getDate();
+                    typeSelect.value = transaction.type;
+                    paymentOptionsGroup.hidden = true;
                 } else {
-                    localStorage.removeItem('coupleId');
-                    coupleId = null;
-                    startAppSession(); // Retry
+                    modalTitle.textContent = 'Adicionar Transação';
+                    transactionIdInput.value = '';
+                    const today = new Date();
+                    dateYearSelect.value = today.getFullYear();
+                    dateMonthSelect.value = today.getMonth();
+                    populateDays();
+                    dateDaySelect.value = today.getDate();
+                    if (type) { typeSelect.value = type; }
+                    paymentOptionsGroup.hidden = false;
                 }
-            } else {
-                joinCoupleContainer.classList.remove('hidden');
+                updateCategoryOptions();
+                if(transaction) categorySelect.value = transaction.category;
+                transactionModal.classList.remove('hidden');
+                setTimeout(() => { transactionModal.classList.remove('opacity-0'); transactionModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
+            };
+            const closeTransactionModal = () => {
+                transactionModal.classList.add('opacity-0');
+                transactionModal.querySelector('.modal-content').classList.add('scale-95');
+                setTimeout(() => transactionModal.classList.add('hidden'), 300);
+            };
+            const openConfirmationModal = (id) => {
+                transactionToDeleteId = id;
+                confirmationModal.classList.remove('hidden');
+                setTimeout(() => { confirmationModal.classList.remove('opacity-0'); confirmationModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
+            };
+            const closeConfirmationModal = () => {
+                confirmationModal.classList.add('opacity-0');
+                confirmationModal.querySelector('.modal-content').classList.add('scale-95');
+                setTimeout(() => confirmationModal.classList.add('hidden'), 300);
+            };
+            const updateCategoryOptions = () => {
+                const currentType = typeSelect.value;
+                categorySelect.innerHTML = '';
+                categories[currentType].forEach(cat => { const option = document.createElement('option'); option.value = cat; option.textContent = cat; categorySelect.appendChild(option); });
+            };
+
+            // ============================
+            //  FIREBASE LOGIC
+            // ============================
+            async function setupRealtimeListener(id) {
+                if (transactionsUnsubscribe) { transactionsUnsubscribe(); }
+                const transactionsRef = collection(db, "couples", id, "transactions");
+                transactionsUnsubscribe = onSnapshot(transactionsRef, (snapshot) => {
+                    transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    updateUI();
+                });
             }
-        }
 
-        async function createNewCoupleSpace() {
-            const newCoupleRef = await addDoc(collection(db, "couples"), { createdAt: serverTimestamp() });
-            setCoupleId(newCoupleRef.id);
-        }
-
-        function setCoupleId(id) {
-            localStorage.setItem('coupleId', id);
-            coupleId = id;
-            startAppSession();
-        }
-        
-        // ============================
-        //  EVENT LISTENERS
-        // ============================
-        getElementById('close-modal-btn').addEventListener('click', closeTransactionModal);
-        getElementById('cancel-btn').addEventListener('click', closeTransactionModal);
-        transactionModal.addEventListener('click', (e) => e.target === transactionModal && closeTransactionModal());
-        typeSelect.addEventListener('change', updateCategoryOptions);
-        paymentTypeRadios.forEach(radio => radio.addEventListener('change', (e) => installmentsFields.hidden = e.target.value !== 'installment'));
-        addTransactionBtn.addEventListener('click', (e) => { e.stopPropagation(); addTransactionMenu.classList.toggle('hidden'); });
-        addTransactionMenu.addEventListener('click', (e) => { e.preventDefault(); const target = e.target.closest('.add-type-option'); if(target) { openTransactionModal(target.dataset.type, null); addTransactionMenu.classList.add('hidden'); } });
-        filterDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); filterDropdownMenu.classList.toggle('hidden'); });
-        filterOptions.forEach(option => option.addEventListener('click', (e) => { e.preventDefault(); currentFilter = e.currentTarget.dataset.filter; const visual = filterVisuals[currentFilter]; getElementById('filter-text').textContent = visual.text; getElementById('filter-color-indicator').className = `w-3 h-3 rounded-full mr-2 ${visual.color}`; filterDropdownMenu.classList.add('hidden'); updateUI(); }));
-        document.addEventListener('click', (e) => { if (!filterDropdownBtn.contains(e.target)) filterDropdownMenu.classList.add('hidden'); if (!addTransactionBtn.contains(e.target)) addTransactionMenu.classList.add('hidden'); });
-        
-        transactionForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = transactionIdInput.value;
-            const day = String(dateDaySelect.value).padStart(2, '0'), month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0'), year = dateYearSelect.value;
-            const constructedDate = `${year}-${month}-${day}`;
-            const paymentType = querySelector('input[name="paymentType"]:checked').value;
-            const baseTransactionData = { description: getElementById('description').value, amount: parseFloat(getElementById('amount').value), date: constructedDate, type: typeSelect.value, category: categorySelect.value };
-            if (id) {
-                const docRef = doc(db, "couples", coupleId, "transactions", id);
-                await setDoc(docRef, { ...baseTransactionData }, { merge: true });
-            } else {
-                 if (paymentType === 'installment') {
-                    const totalInstallments = parseInt(getElementById('installments').value);
-                    if (!totalInstallments || totalInstallments < 2) return alert('Número de parcelas inválido.');
-                    const startDate = new Date(constructedDate + 'T00:00:00');
-                    for (let i = 1; i <= totalInstallments; i++) {
-                        const installmentDate = new Date(startDate);
-                        installmentDate.setMonth(startDate.getMonth() + (i - 1));
-                        const installmentData = { ...baseTransactionData, description: `${baseTransactionData.description} (${i}/${totalInstallments})`, date: installmentDate.toISOString().split('T')[0], status: 'pending', paymentType: 'installment' };
-                        await addDoc(collection(db, "couples", coupleId, "transactions"), installmentData);
+            async function startAppSession() {
+                await signInAnonymously(auth);
+                if (coupleId) {
+                    const coupleDoc = await getDoc(doc(db, "couples", coupleId));
+                    if (coupleDoc.exists()) {
+                        await setupRealtimeListener(coupleId);
+                        coupleIdDisplay.textContent = coupleId;
+                        coupleIdContainer.classList.remove('hidden');
+                        joinCoupleContainer.classList.add('hidden');
+                    } else {
+                        localStorage.removeItem('coupleId');
+                        coupleId = null;
+                        startAppSession(); // Retry
                     }
                 } else {
-                    const status = paymentType === 'single' ? 'paid' : 'pending';
-                    await addDoc(collection(db, "couples", coupleId, "transactions"), { ...baseTransactionData, status, paymentType });
+                    joinCoupleContainer.classList.remove('hidden');
                 }
             }
-            closeTransactionModal();
-        });
 
-        transactionsTableBody.addEventListener('click', async (e) => {
-            const editBtn = e.target.closest('.edit-btn'), deleteBtn = e.target.closest('.delete-btn'), statusBtn = e.target.closest('.status-btn');
-            if (editBtn) { const transaction = transactions.find(t => t.id === editBtn.dataset.id); if (transaction) openTransactionModal(null, transaction); }
-            if (deleteBtn) { openConfirmationModal(deleteBtn.dataset.id); }
-            if (statusBtn) {
-                const id = statusBtn.dataset.id;
-                const transaction = transactions.find(t => t.id === id);
-                if (transaction) {
-                    const newStatus = transaction.status === 'paid' ? 'pending' : 'paid';
+            async function createNewCoupleSpace() {
+                const newCoupleRef = await addDoc(collection(db, "couples"), { createdAt: serverTimestamp() });
+                setCoupleId(newCoupleRef.id);
+            }
+
+            function setCoupleId(id) {
+                localStorage.setItem('coupleId', id);
+                coupleId = id;
+                startAppSession();
+            }
+            
+            // ============================
+            //  EVENT LISTENERS
+            // ============================
+            document.getElementById('close-modal-btn').addEventListener('click', closeTransactionModal);
+            document.getElementById('cancel-btn').addEventListener('click', closeTransactionModal);
+            transactionModal.addEventListener('click', (e) => e.target === transactionModal && closeTransactionModal());
+            typeSelect.addEventListener('change', updateCategoryOptions);
+            paymentTypeRadios.forEach(radio => radio.addEventListener('change', (e) => installmentsFields.hidden = e.target.value !== 'installment'));
+            addTransactionBtn.addEventListener('click', (e) => { e.stopPropagation(); addTransactionMenu.classList.toggle('hidden'); });
+            addTransactionMenu.addEventListener('click', (e) => { e.preventDefault(); const target = e.target.closest('.add-type-option'); if(target) { openTransactionModal(target.dataset.type, null); addTransactionMenu.classList.add('hidden'); } });
+            filterDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); filterDropdownMenu.classList.toggle('hidden'); });
+            filterOptions.forEach(option => option.addEventListener('click', (e) => { e.preventDefault(); currentFilter = e.currentTarget.dataset.filter; const visual = filterVisuals[currentFilter]; document.getElementById('filter-text').textContent = visual.text; document.getElementById('filter-color-indicator').className = `w-3 h-3 rounded-full mr-2 ${visual.color}`; filterDropdownMenu.classList.add('hidden'); updateUI(); }));
+            document.addEventListener('click', (e) => { if (!filterDropdownBtn.contains(e.target)) filterDropdownMenu.classList.add('hidden'); if (!addTransactionBtn.contains(e.target)) addTransactionMenu.classList.add('hidden'); });
+            
+            transactionForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = transactionIdInput.value;
+                const day = String(dateDaySelect.value).padStart(2, '0'), month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0'), year = dateYearSelect.value;
+                const constructedDate = `${year}-${month}-${day}`;
+                const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
+                const baseTransactionData = { description: document.getElementById('description').value, amount: parseFloat(document.getElementById('amount').value), date: constructedDate, type: typeSelect.value, category: categorySelect.value };
+                if (id) {
                     const docRef = doc(db, "couples", coupleId, "transactions", id);
-                    await setDoc(docRef, { status: newStatus }, { merge: true });
+                    await setDoc(docRef, { ...baseTransactionData }, { merge: true });
+                } else {
+                     if (paymentType === 'installment') {
+                        const totalInstallments = parseInt(document.getElementById('installments').value);
+                        if (!totalInstallments || totalInstallments < 2) return alert('Número de parcelas inválido.');
+                        const startDate = new Date(constructedDate + 'T00:00:00');
+                        for (let i = 1; i <= totalInstallments; i++) {
+                            const installmentDate = new Date(startDate);
+                            installmentDate.setMonth(startDate.getMonth() + (i - 1));
+                            const installmentData = { ...baseTransactionData, description: `${baseTransactionData.description} (${i}/${totalInstallments})`, date: installmentDate.toISOString().split('T')[0], status: 'pending', paymentType: 'installment' };
+                            await addDoc(collection(db, "couples", coupleId, "transactions"), installmentData);
+                        }
+                    } else {
+                        const status = paymentType === 'single' ? 'paid' : 'pending';
+                        await addDoc(collection(db, "couples", coupleId, "transactions"), { ...baseTransactionData, status, paymentType });
+                    }
                 }
+                closeTransactionModal();
+            });
+
+            transactionsTableBody.addEventListener('click', async (e) => {
+                const editBtn = e.target.closest('.edit-btn'), deleteBtn = e.target.closest('.delete-btn'), statusBtn = e.target.closest('.status-btn');
+                if (editBtn) { const transaction = transactions.find(t => t.id === editBtn.dataset.id); if (transaction) openTransactionModal(null, transaction); }
+                if (deleteBtn) { openConfirmationModal(deleteBtn.dataset.id); }
+                if (statusBtn) {
+                    const id = statusBtn.dataset.id;
+                    const transaction = transactions.find(t => t.id === id);
+                    if (transaction) {
+                        const newStatus = transaction.status === 'paid' ? 'pending' : 'paid';
+                        const docRef = doc(db, "couples", coupleId, "transactions", id);
+                        await setDoc(docRef, { status: newStatus }, { merge: true });
+                    }
+                }
+            });
+            
+            document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmationModal);
+            confirmationModal.addEventListener('click', (e) => e.target === confirmationModal && closeConfirmationModal());
+            document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+                if (transactionToDeleteId) {
+                    await deleteDoc(doc(db, "couples", coupleId, "transactions", transactionToDeleteId));
+                    closeConfirmationModal();
+                    transactionToDeleteId = null;
+                }
+            });
+
+            document.getElementById('prev-month-btn').addEventListener('click', () => { displayedDate.setMonth(displayedDate.getMonth() - 1); updateUI(); });
+            document.getElementById('next-month-btn').addEventListener('click', () => { displayedDate.setMonth(displayedDate.getMonth() + 1); updateUI(); });
+            document.getElementById('search-input').addEventListener('input', updateUI);
+            
+            document.getElementById('join-couple-btn').addEventListener('click', () => {
+                const idToJoin = document.getElementById('join-couple-id-input').value.trim();
+                if (idToJoin) setCoupleId(idToJoin);
+            });
+
+            document.getElementById('copy-couple-id').addEventListener('click', () => {
+                navigator.clipboard.writeText(coupleIdDisplay.textContent).then(() => alert('Código copiado!'));
+            });
+            
+            // ============================
+            //  INITIALIZATION
+            // ============================
+            populateDateSelectors();
+            
+            if(!coupleId) {
+                createNewCoupleSpace();
+            } else {
+                startAppSession();
             }
         });
-        
-        getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmationModal);
-        confirmationModal.addEventListener('click', (e) => e.target === confirmationModal && closeConfirmationModal());
-        getElementById('confirm-delete-btn').addEventListener('click', async () => {
-            if (transactionToDeleteId) {
-                await deleteDoc(doc(db, "couples", coupleId, "transactions", transactionToDeleteId));
-                closeConfirmationModal();
-                transactionToDeleteId = null;
-            }
-        });
-
-        getElementById('prev-month-btn').addEventListener('click', () => { displayedDate.setMonth(displayedDate.getMonth() - 1); updateUI(); });
-        getElementById('next-month-btn').addEventListener('click', () => { displayedDate.setMonth(displayedDate.getMonth() + 1); updateUI(); });
-        getElementById('search-input').addEventListener('input', updateUI);
-        
-        getElementById('join-couple-btn').addEventListener('click', () => {
-            const idToJoin = getElementById('join-couple-id-input').value.trim();
-            if (idToJoin) setCoupleId(idToJoin);
-        });
-
-        getElementById('copy-couple-id').addEventListener('click', () => {
-            navigator.clipboard.writeText(coupleIdDisplay.textContent).then(() => alert('Código copiado!'));
-        });
-        
-        // ============================
-        //  INITIALIZATION
-        // ============================
-        populateDateSelectors();
-        
-        if(!coupleId) {
-            createNewCoupleSpace();
-        } else {
-            startAppSession();
-        }
-    });
     </script>
 </body>
 </html>
-

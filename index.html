@@ -250,15 +250,13 @@
         // ============================
         // FIREBASE CONFIGURATION
         // ============================
-        // ATENÇÃO: Cole aqui a configuração do seu projeto Firebase
-        // Você encontra isso nas configurações do seu projeto no console do Firebase.
         const firebaseConfig = {
-              apiKey: "AIzaSyCVrSaWM7MH2ObkezY9ZAoL0cvu6H2hQBw",
-              authDomain: "roo-code-471523.firebaseapp.com",
-              projectId: "roo-code-471523",
-              storageBucket: "roo-code-471523.firebasestorage.app",
-              messagingSenderId: "616125709991",
-              appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
+            apiKey: "AIzaSyCVrSaWM7MH2ObkezY9ZAoL0cvu6H2hQBw",
+            authDomain: "roo-code-471523.firebaseapp.com",
+            projectId: "roo-code-471523",
+            storageBucket: "roo-code-471523.firebasestorage.app",
+            messagingSenderId: "616125709991",
+            appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
         };
 
         // Initialize Firebase
@@ -295,65 +293,120 @@
         const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
         
-        // UI Update functions (renderKPIs, renderTransactionsTable, updateUI) remain the same, they will now use the global `transactions` array which is populated by Firebase.
+        // UI Update functions
         const updateUI = () => { renderKPIs(); renderTransactionsTable(); };
-        const renderKPIs = () => { /* ... same as before ... */ };
-        const renderTransactionsTable = () => { /* ... same as before, no changes needed ... */ };
+        const renderKPIs = () => {
+            const currentMonth = displayedDate.getMonth();
+            const currentYear = displayedDate.getFullYear();
+            const paidTransactionsForKPIs = transactions.filter(t => t.status === 'paid');
+            const totalBalance = paidTransactionsForKPIs.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
+            const monthlyPaidTransactions = paidTransactionsForKPIs.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; });
+            const monthlyIncome = monthlyPaidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+            const monthlyExpense = monthlyPaidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+            const monthlyBalance = monthlyIncome - monthlyExpense;
+            getElementById('kpi-total-balance').textContent = formatCurrency(totalBalance);
+            getElementById('kpi-monthly-income').textContent = formatCurrency(monthlyIncome);
+            getElementById('kpi-monthly-expense').textContent = formatCurrency(monthlyExpense);
+            getElementById('kpi-monthly-balance').textContent = formatCurrency(monthlyBalance);
+        };
+        const renderTransactionsTable = () => {
+            transactionsTableBody.innerHTML = '';
+            currentMonthDisplay.textContent = getMonthYearString(displayedDate);
+            const currentMonth = displayedDate.getMonth();
+            const currentYear = displayedDate.getFullYear();
+            const searchTerm = getElementById('search-input').value.toLowerCase();
+            const filteredTransactions = transactions.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; }).filter(t => currentFilter === 'all' || t.type === currentFilter).filter(t => t.description.toLowerCase().includes(searchTerm)).sort((a, b) => new Date(b.date) - new Date(a.date));
+            if (filteredTransactions.length === 0) { transactionsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-12">Nenhuma transação encontrada.</td></tr>`; return; }
+            filteredTransactions.forEach(t => {
+                const visual = categoryVisuals[t.category] || categoryVisuals['Outros'];
+                const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
+                let borderColorClass = 'border-slate-500'; if (t.type === 'income') borderColorClass = 'border-emerald-500'; if (t.type === 'expense') borderColorClass = 'border-rose-500';
+                let valueColorClass = 'text-slate-800', valuePrefix = ''; if (t.type === 'income') { valueColorClass = 'text-emerald-600'; valuePrefix = '+'; } if (t.type === 'expense') { valueColorClass = 'text-rose-600'; valuePrefix = '-'; }
+                const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button></td></tr>`;
+                transactionsTableBody.innerHTML += row;
+            });
+        };
 
-        // Date selector functions (populateDays, populateDateSelectors) are the same
-        const populateDays = () => { /* ... same as before ... */ };
-        const populateDateSelectors = () => { /* ... same as before ... */ };
+        // Date selector functions
+        const populateDays = () => {
+            const selectedMonth = parseInt(dateMonthSelect.value);
+            const selectedYear = parseInt(dateYearSelect.value);
+            const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+            const currentDay = dateDaySelect.value;
+            dateDaySelect.innerHTML = '';
+            for (let i = 1; i <= daysInMonth; i++) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateDaySelect.appendChild(option); }
+            if (currentDay <= daysInMonth) { dateDaySelect.value = currentDay; }
+        };
+        const populateDateSelectors = () => {
+            const currentYear = new Date().getFullYear();
+            dateYearSelect.innerHTML = '';
+            for (let i = currentYear + 1; i >= currentYear - 5; i--) { const option = document.createElement('option'); option.value = i; option.textContent = i; dateYearSelect.appendChild(option); }
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            dateMonthSelect.innerHTML = '';
+            months.forEach((month, index) => { const option = document.createElement('option'); option.value = index; option.textContent = month; dateMonthSelect.appendChild(option); });
+            dateMonthSelect.addEventListener('change', populateDays);
+            dateYearSelect.addEventListener('change', populateDays);
+        };
 
-        // Modal Logic functions (open/close) are the same
-        const openTransactionModal = (type, transaction) => { /* ... same as before ... */ };
-        const closeTransactionModal = () => { /* ... same as before ... */ };
-        const openConfirmationModal = (id) => { /* ... same as before ... */ };
-        const closeConfirmationModal = () => { /* ... same as before ... */ };
-        const updateCategoryOptions = () => { /* ... same as before ... */ };
-
-        // Re-implementing rendering functions to be sure they are here
-        Object.assign(window, {
-            renderKPIs: () => {
-                const currentMonth = displayedDate.getMonth();
-                const currentYear = displayedDate.getFullYear();
-                const paidTransactionsForKPIs = transactions.filter(t => t.status === 'paid');
-                const totalBalance = paidTransactionsForKPIs.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc - t.amount, 0);
-                const monthlyPaidTransactions = paidTransactionsForKPIs.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; });
-                const monthlyIncome = monthlyPaidTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-                const monthlyExpense = monthlyPaidTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-                const monthlyBalance = monthlyIncome - monthlyExpense;
-                getElementById('kpi-total-balance').textContent = formatCurrency(totalBalance);
-                getElementById('kpi-monthly-income').textContent = formatCurrency(monthlyIncome);
-                getElementById('kpi-monthly-expense').textContent = formatCurrency(monthlyExpense);
-                getElementById('kpi-monthly-balance').textContent = formatCurrency(monthlyBalance);
-            },
-            renderTransactionsTable: () => {
-                transactionsTableBody.innerHTML = '';
-                currentMonthDisplay.textContent = getMonthYearString(displayedDate);
-                const currentMonth = displayedDate.getMonth();
-                const currentYear = displayedDate.getFullYear();
-                const searchTerm = getElementById('search-input').value.toLowerCase();
-                const filteredTransactions = transactions.filter(t => { const tDate = new Date(t.date + 'T00:00:00'); return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear; }).filter(t => currentFilter === 'all' || t.type === currentFilter).filter(t => t.description.toLowerCase().includes(searchTerm)).sort((a, b) => new Date(b.date) - new Date(a.date));
-                if (filteredTransactions.length === 0) { transactionsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-12">Nenhuma transação encontrada.</td></tr>`; return; }
-                filteredTransactions.forEach(t => {
-                    const visual = categoryVisuals[t.category] || categoryVisuals['Outros'];
-                    const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
-                    let borderColorClass = 'border-slate-500'; if (t.type === 'income') borderColorClass = 'border-emerald-500'; if (t.type === 'expense') borderColorClass = 'border-rose-500';
-                    let valueColorClass = 'text-slate-800', valuePrefix = ''; if (t.type === 'income') { valueColorClass = 'text-emerald-600'; valuePrefix = '+'; } if (t.type === 'expense') { valueColorClass = 'text-rose-600'; valuePrefix = '-'; }
-                    const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button></td></tr>`;
-                    transactionsTableBody.innerHTML += row;
-                });
-            },
-            populateDays, populateDateSelectors, openTransactionModal, closeTransactionModal, openConfirmationModal, closeConfirmationModal, updateCategoryOptions
-        });
+        // Modal Logic functions
+        const openTransactionModal = (type, transaction) => {
+            transactionForm.reset();
+            querySelector('input[name="paymentType"][value="single"]').checked = true;
+            installmentsFields.hidden = true;
+            if (transaction) {
+                modalTitle.textContent = 'Editar Transação';
+                transactionIdInput.value = transaction.id;
+                getElementById('description').value = transaction.description;
+                getElementById('amount').value = transaction.amount;
+                const date = new Date(transaction.date + 'T00:00:00');
+                dateYearSelect.value = date.getFullYear();
+                dateMonthSelect.value = date.getMonth();
+                populateDays();
+                dateDaySelect.value = date.getDate();
+                typeSelect.value = transaction.type;
+                paymentOptionsGroup.hidden = true;
+            } else {
+                modalTitle.textContent = 'Adicionar Transação';
+                transactionIdInput.value = '';
+                const today = new Date();
+                dateYearSelect.value = today.getFullYear();
+                dateMonthSelect.value = today.getMonth();
+                populateDays();
+                dateDaySelect.value = today.getDate();
+                if (type) { typeSelect.value = type; }
+                paymentOptionsGroup.hidden = false;
+            }
+            updateCategoryOptions();
+            if(transaction) categorySelect.value = transaction.category;
+            transactionModal.classList.remove('hidden');
+            setTimeout(() => { transactionModal.classList.remove('opacity-0'); transactionModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
+        };
+        const closeTransactionModal = () => {
+            transactionModal.classList.add('opacity-0');
+            transactionModal.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => transactionModal.classList.add('hidden'), 300);
+        };
+        const openConfirmationModal = (id) => {
+            transactionToDeleteId = id;
+            confirmationModal.classList.remove('hidden');
+            setTimeout(() => { confirmationModal.classList.remove('opacity-0'); confirmationModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
+        };
+        const closeConfirmationModal = () => {
+            confirmationModal.classList.add('opacity-0');
+            confirmationModal.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => confirmationModal.classList.add('hidden'), 300);
+        };
+        const updateCategoryOptions = () => {
+            const currentType = typeSelect.value;
+            categorySelect.innerHTML = '';
+            categories[currentType].forEach(cat => { const option = document.createElement('option'); option.value = cat; option.textContent = cat; categorySelect.appendChild(option); });
+        };
 
         // ============================
         //  FIREBASE LOGIC
         // ============================
         async function setupRealtimeListener(id) {
-            if (transactionsUnsubscribe) {
-                transactionsUnsubscribe(); // Detach the old listener
-            }
+            if (transactionsUnsubscribe) { transactionsUnsubscribe(); }
             const transactionsRef = collection(db, "couples", id, "transactions");
             transactionsUnsubscribe = onSnapshot(transactionsRef, (snapshot) => {
                 transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -361,7 +414,7 @@
             });
         }
 
-        async function initializeApp() {
+        async function startAppSession() {
             await signInAnonymously(auth);
             if (coupleId) {
                 const coupleDoc = await getDoc(doc(db, "couples", coupleId));
@@ -373,7 +426,7 @@
                 } else {
                     localStorage.removeItem('coupleId');
                     coupleId = null;
-                    initializeApp(); // Retry initialization
+                    startAppSession(); // Retry
                 }
             } else {
                 joinCoupleContainer.classList.remove('hidden');
@@ -388,7 +441,7 @@
         function setCoupleId(id) {
             localStorage.setItem('coupleId', id);
             coupleId = id;
-            initializeApp();
+            startAppSession();
         }
         
         // ============================
@@ -411,9 +464,7 @@
             const day = String(dateDaySelect.value).padStart(2, '0'), month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0'), year = dateYearSelect.value;
             const constructedDate = `${year}-${month}-${day}`;
             const paymentType = querySelector('input[name="paymentType"]:checked').value;
-            
             const baseTransactionData = { description: getElementById('description').value, amount: parseFloat(getElementById('amount').value), date: constructedDate, type: typeSelect.value, category: categorySelect.value };
-            
             if (id) {
                 const docRef = doc(db, "couples", coupleId, "transactions", id);
                 await setDoc(docRef, { ...baseTransactionData }, { merge: true });
@@ -479,14 +530,13 @@
         // ============================
         populateDateSelectors();
         
-        // Check if there is a couple ID, if not, create one.
         if(!coupleId) {
-             // Create a new space automatically for the first user
             createNewCoupleSpace();
         } else {
-            initializeApp();
+            startAppSession();
         }
     });
     </script>
 </body>
 </html>
+

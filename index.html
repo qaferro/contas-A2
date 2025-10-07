@@ -82,9 +82,18 @@
                             <i class="fas fa-chevron-down text-slate-500"></i>
                         </button>
                         <div id="filter-dropdown-menu" class="absolute mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 hidden z-10">
-                            <a href="#" data-filter="all" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100"><span class="w-3 h-3 rounded-full bg-slate-500 mr-2"></span>Todas</a>
-                            <a href="#" data-filter="expense" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100"><span class="w-3 h-3 rounded-full bg-rose-500 mr-2"></span>Despesas</a>
-                            <a href="#" data-filter="income" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100"><span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span>Receitas</a>
+                            <a href="#" data-filter="all" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-slate-500 mr-2"></span>Todas
+                                <i class="fas fa-check ml-auto text-slate-400 hidden check-icon"></i>
+                            </a>
+                            <a href="#" data-filter="expense" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 mr-2"></span>Despesas
+                                <i class="fas fa-check ml-auto text-slate-400 hidden check-icon"></i>
+                            </a>
+                            <a href="#" data-filter="income" class="filter-option flex items-center px-4 py-2 text-slate-700 hover:bg-slate-100">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span>Receitas
+                                <i class="fas fa-check ml-auto text-slate-400 hidden check-icon"></i>
+                            </a>
                         </div>
                     </div>
                      <div class="relative">
@@ -134,7 +143,7 @@
                     <i class="fas fa-heart text-2xl text-red-500 mr-3"></i>
                     <span class="font-bold text-xl text-slate-800">Painel Financeiro</span>
                 </div>
-                <button class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center"><i class="fas fa-cog text-slate-500"></i></button>
+                <button id="settings-btn" class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center" aria-label="Configurações"><i class="fas fa-cog text-slate-500"></i></button>
             </div>
 
             <div class="space-y-6">
@@ -223,7 +232,12 @@
                 </div>
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" id="cancel-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg transition-colors duration-300">Cancelar</button>
-                    <button type="submit" class="bg-slate-900 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">Salvar</button>
+                    <button type="submit" id="submit-btn" class="bg-slate-900 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center justify-center">
+                        <span class="submit-text">Salvar</span>
+                        <span class="submit-loading hidden ml-2">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -306,11 +320,27 @@
             const coupleIdDisplay = document.getElementById('couple-id-display');
             const paymentTypeRadios = document.querySelectorAll('input[name="paymentType"]');
             const filterOptions = document.querySelectorAll('.filter-option');
-            
+            const submitBtn = document.getElementById('submit-btn');
+            const submitText = submitBtn.querySelector('.submit-text');
+            const submitLoading = submitBtn.querySelector('.submit-loading');
+
             // Helper functions
             const formatCurrency = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+
+            // Loading state management
+            const setSubmitButtonLoading = (loading) => {
+                if (loading) {
+                    submitText.classList.add('hidden');
+                    submitLoading.classList.remove('hidden');
+                    submitBtn.disabled = true;
+                } else {
+                    submitText.classList.remove('hidden');
+                    submitLoading.classList.add('hidden');
+                    submitBtn.disabled = false;
+                }
+            };
             
             // UI Update functions
             const updateUI = () => { renderKPIs(); renderTransactionsTable(); };
@@ -341,7 +371,8 @@
                     const isRecurringIcon = t.paymentType === 'recurring' ? `<i class="fas fa-sync-alt text-blue-500 ml-2 text-xs" title="Recorrente"></i>` : '';
                     let borderColorClass = 'border-slate-500'; if (t.type === 'income') borderColorClass = 'border-emerald-500'; if (t.type === 'expense') borderColorClass = 'border-rose-500';
                     let valueColorClass = 'text-slate-800', valuePrefix = ''; if (t.type === 'income') { valueColorClass = 'text-emerald-600'; valuePrefix = '+'; } if (t.type === 'expense') { valueColorClass = 'text-rose-600'; valuePrefix = '-'; }
-                    const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1"><i class="fas fa-pencil-alt"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1"><i class="fas fa-trash-alt"></i></button></td></tr>`;
+                    const statusLabel = t.status === 'paid' ? 'Marcar como pendente' : 'Marcar como paga';
+                    const row = `<tr class="hover:bg-slate-50 border-l-2 ${borderColorClass}"><td class="px-6 py-4"><button data-id="${t.id}" class="status-btn w-6 h-6 rounded-full flex items-center justify-center transition-transform transform hover:scale-110 ${t.status === 'paid' ? 'bg-emerald-100' : 'bg-yellow-100'}" aria-label="${statusLabel}" title="${statusLabel}"><i class="fas ${t.status === 'paid' ? 'fa-check text-emerald-600' : 'fa-clock text-yellow-600'} text-xs"></i></button></td><td class="px-6 py-4">${formatDate(t.date)}</td><td class="px-6 py-4 font-medium text-slate-800 flex items-center">${t.description} ${isRecurringIcon}</td><td class="px-6 py-4"><div class="flex items-center"><div class="w-6 h-6 rounded-full ${visual.color} text-white flex items-center justify-center text-xs mr-2" aria-hidden="true"><i class="fas ${visual.icon}"></i></div>${t.category}</div></td><td class="px-6 py-4 font-semibold text-right ${valueColorClass}">${valuePrefix} ${formatCurrency(t.amount)}</td><td class="px-6 py-4 text-center"><button data-id="${t.id}" class="edit-btn text-slate-400 hover:text-slate-600 p-1" aria-label="Editar transação" title="Editar"><i class="fas fa-pencil-alt" aria-hidden="true"></i></button><button data-id="${t.id}" class="delete-btn text-slate-400 hover:text-rose-600 p-1" aria-label="Excluir transação" title="Excluir"><i class="fas fa-trash-alt" aria-hidden="true"></i></button></td></tr>`;
                     transactionsTableBody.innerHTML += row;
                 });
             };
@@ -372,6 +403,7 @@
                 transactionForm.reset();
                 document.querySelector('input[name="paymentType"][value="single"]').checked = true;
                 installmentsFields.hidden = true;
+
                 if (transaction) {
                     modalTitle.textContent = 'Editar Transação';
                     transactionIdInput.value = transaction.id;
@@ -383,6 +415,16 @@
                     populateDays();
                     dateDaySelect.value = date.getDate();
                     typeSelect.value = transaction.type;
+
+                    // Restore payment type radio button state
+                    if (transaction.paymentType) {
+                        document.querySelector(`input[name="paymentType"][value="${transaction.paymentType}"]`).checked = true;
+                        if (transaction.paymentType === 'installment') {
+                            installmentsFields.hidden = false;
+                            document.getElementById('installments').value = transaction.installments || 2;
+                        }
+                    }
+
                     paymentOptionsGroup.hidden = true;
                 } else {
                     modalTitle.textContent = 'Adicionar Transação';
@@ -396,7 +438,9 @@
                     paymentOptionsGroup.hidden = false;
                 }
                 updateCategoryOptions();
-                if(transaction) categorySelect.value = transaction.category;
+                if (transaction && transaction.category) {
+                    categorySelect.value = transaction.category;
+                }
                 transactionModal.classList.remove('hidden');
                 setTimeout(() => { transactionModal.classList.remove('opacity-0'); transactionModal.querySelector('.modal-content').classList.remove('scale-95'); }, 10);
             };
@@ -474,36 +518,126 @@
             addTransactionBtn.addEventListener('click', (e) => { e.stopPropagation(); addTransactionMenu.classList.toggle('hidden'); });
             addTransactionMenu.addEventListener('click', (e) => { e.preventDefault(); const target = e.target.closest('.add-type-option'); if(target) { openTransactionModal(target.dataset.type, null); addTransactionMenu.classList.add('hidden'); } });
             filterDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); filterDropdownMenu.classList.toggle('hidden'); });
-            filterOptions.forEach(option => option.addEventListener('click', (e) => { e.preventDefault(); currentFilter = e.currentTarget.dataset.filter; const visual = filterVisuals[currentFilter]; document.getElementById('filter-text').textContent = visual.text; document.getElementById('filter-color-indicator').className = `w-3 h-3 rounded-full mr-2 ${visual.color}`; filterDropdownMenu.classList.add('hidden'); updateUI(); }));
+            filterOptions.forEach(option => option.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentFilter = e.currentTarget.dataset.filter;
+                const visual = filterVisuals[currentFilter];
+                document.getElementById('filter-text').textContent = visual.text;
+                document.getElementById('filter-color-indicator').className = `w-3 h-3 rounded-full mr-2 ${visual.color}`;
+                filterDropdownMenu.classList.add('hidden');
+
+                // Update check icons
+                document.querySelectorAll('.filter-option .check-icon').forEach(icon => icon.classList.add('hidden'));
+                e.currentTarget.querySelector('.check-icon').classList.remove('hidden');
+
+                updateUI();
+            }));
             document.addEventListener('click', (e) => { if (!filterDropdownBtn.contains(e.target)) filterDropdownMenu.classList.add('hidden'); if (!addTransactionBtn.contains(e.target)) addTransactionMenu.classList.add('hidden'); });
             
+            // Form validation functions
+            const validateForm = () => {
+                const description = document.getElementById('description').value.trim();
+                const amount = parseFloat(document.getElementById('amount').value);
+                const category = categorySelect.value;
+                const day = dateDaySelect.value;
+                const month = dateMonthSelect.value;
+                const year = dateYearSelect.value;
+
+                // Validate description
+                if (!description) {
+                    alert('Por favor, insira uma descrição para a transação.');
+                    document.getElementById('description').focus();
+                    return false;
+                }
+
+                // Validate amount
+                if (isNaN(amount) || amount <= 0) {
+                    alert('Por favor, insira um valor válido maior que zero.');
+                    document.getElementById('amount').focus();
+                    return false;
+                }
+
+                // Validate category
+                if (!category) {
+                    alert('Por favor, selecione uma categoria.');
+                    categorySelect.focus();
+                    return false;
+                }
+
+                // Validate date
+                if (!day || !month || !year) {
+                    alert('Por favor, selecione uma data válida.');
+                    return false;
+                }
+
+                // Validate date is not in future (optional, but good practice)
+                const selectedDate = new Date(parseInt(year), parseInt(month), parseInt(day));
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (selectedDate > today) {
+                    alert('A data não pode ser no futuro.');
+                    return false;
+                }
+
+                return true;
+            };
+
             transactionForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const id = transactionIdInput.value;
-                const day = String(dateDaySelect.value).padStart(2, '0'), month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0'), year = dateYearSelect.value;
-                const constructedDate = `${year}-${month}-${day}`;
-                const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
-                const baseTransactionData = { description: document.getElementById('description').value, amount: parseFloat(document.getElementById('amount').value), date: constructedDate, type: typeSelect.value, category: categorySelect.value };
-                if (id) {
-                    const docRef = doc(db, "couples", coupleId, "transactions", id);
-                    await setDoc(docRef, { ...baseTransactionData }, { merge: true });
-                } else {
-                     if (paymentType === 'installment') {
-                        const totalInstallments = parseInt(document.getElementById('installments').value);
-                        if (!totalInstallments || totalInstallments < 2) return alert('Número de parcelas inválido.');
-                        const startDate = new Date(constructedDate + 'T00:00:00');
-                        for (let i = 1; i <= totalInstallments; i++) {
-                            const installmentDate = new Date(startDate);
-                            installmentDate.setMonth(startDate.getMonth() + (i - 1));
-                            const installmentData = { ...baseTransactionData, description: `${baseTransactionData.description} (${i}/${totalInstallments})`, date: installmentDate.toISOString().split('T')[0], status: 'pending', paymentType: 'installment' };
-                            await addDoc(collection(db, "couples", coupleId, "transactions"), installmentData);
-                        }
-                    } else {
-                        const status = paymentType === 'single' ? 'paid' : 'pending';
-                        await addDoc(collection(db, "couples", coupleId, "transactions"), { ...baseTransactionData, status, paymentType });
-                    }
+
+                // Validate form before processing
+                if (!validateForm()) {
+                    return;
                 }
-                closeTransactionModal();
+
+                setSubmitButtonLoading(true);
+
+                try {
+                    const id = transactionIdInput.value;
+                    const day = String(dateDaySelect.value).padStart(2, '0');
+                    const month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0');
+                    const year = dateYearSelect.value;
+                    const constructedDate = `${year}-${month}-${day}`;
+                    const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
+                    const baseTransactionData = {
+                        description: document.getElementById('description').value.trim(),
+                        amount: parseFloat(document.getElementById('amount').value),
+                        date: constructedDate,
+                        type: typeSelect.value,
+                        category: categorySelect.value
+                    };
+                    if (id) {
+                        const docRef = doc(db, "couples", coupleId, "transactions", id);
+                        await setDoc(docRef, { ...baseTransactionData }, { merge: true });
+                    } else {
+                        if (paymentType === 'installment') {
+                            const totalInstallments = parseInt(document.getElementById('installments').value);
+                            if (!totalInstallments || totalInstallments < 2 || totalInstallments > 60) {
+                                alert('Número de parcelas deve ser entre 2 e 60.');
+                                document.getElementById('installments').focus();
+                                return;
+                            }
+                            const startDate = new Date(constructedDate + 'T00:00:00');
+                            for (let i = 1; i <= totalInstallments; i++) {
+                                const installmentDate = new Date(startDate);
+                                installmentDate.setMonth(startDate.getMonth() + (i - 1));
+                                const installmentData = { ...baseTransactionData, description: `${baseTransactionData.description} (${i}/${totalInstallments})`, date: installmentDate.toISOString().split('T')[0], status: 'pending', paymentType: 'installment' };
+                                await addDoc(collection(db, "couples", coupleId, "transactions"), installmentData);
+                            }
+                        } else {
+                            const status = paymentType === 'single' ? 'paid' : 'pending';
+                            await addDoc(collection(db, "couples", coupleId, "transactions"), { ...baseTransactionData, status, paymentType });
+                        }
+                    }
+                    closeTransactionModal();
+                } catch (error) {
+                    console.error('Erro ao salvar transação:', error);
+                    alert('Erro ao salvar transação. Tente novamente.');
+                    // Keep form data for user to retry - modal stays open
+                } finally {
+                    setSubmitButtonLoading(false);
+                }
             });
 
             transactionsTableBody.addEventListener('click', async (e) => {
@@ -535,9 +669,45 @@
             document.getElementById('next-month-btn').addEventListener('click', () => { displayedDate.setMonth(displayedDate.getMonth() + 1); updateUI(); });
             document.getElementById('search-input').addEventListener('input', updateUI);
             
-            document.getElementById('join-couple-btn').addEventListener('click', () => {
+            document.getElementById('join-couple-btn').addEventListener('click', async () => {
                 const idToJoin = document.getElementById('join-couple-id-input').value.trim();
-                if (idToJoin) setCoupleId(idToJoin);
+
+                // Validate couple ID format
+                if (!idToJoin) {
+                    alert('Por favor, insira o código do casal.');
+                    document.getElementById('join-couple-id-input').focus();
+                    return;
+                }
+
+                if (idToJoin.length < 10) {
+                    alert('Código do casal inválido. Deve conter pelo menos 10 caracteres.');
+                    document.getElementById('join-couple-id-input').focus();
+                    return;
+                }
+
+                // Show loading state
+                const joinBtn = document.getElementById('join-couple-btn');
+                const originalText = joinBtn.textContent;
+                joinBtn.textContent = 'Conectando...';
+                joinBtn.disabled = true;
+
+                try {
+                    // First verify if the couple ID exists
+                    const coupleDoc = await getDoc(doc(db, "couples", idToJoin));
+                    if (coupleDoc.exists()) {
+                        setCoupleId(idToJoin);
+                    } else {
+                        alert('Código do casal não encontrado. Verifique se o código está correto.');
+                        document.getElementById('join-couple-id-input').focus();
+                    }
+                } catch (error) {
+                    console.error('Erro ao conectar:', error);
+                    alert('Erro ao conectar. Tente novamente.');
+                } finally {
+                    // Restore button state
+                    joinBtn.textContent = originalText;
+                    joinBtn.disabled = false;
+                }
             });
 
             document.getElementById('copy-couple-id').addEventListener('click', () => {

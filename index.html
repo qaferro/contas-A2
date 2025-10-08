@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finanças do Casal | Dashboard</title>
-    <!-- Tailwind CSS CDN -->
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+    <!-- Tailwind CSS CDN (Development only - use build version for production) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,7 +145,13 @@
                     <i class="fas fa-heart text-2xl text-red-500 mr-3"></i>
                     <span class="font-bold text-xl text-slate-800">Painel Financeiro</span>
                 </div>
-                <button id="settings-btn" class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center" aria-label="Configurações"><i class="fas fa-cog text-slate-500"></i></button>
+                <div class="flex items-center space-x-2">
+                    <div id="connection-status" class="flex items-center space-x-1">
+                        <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span class="text-xs text-slate-500">Online</span>
+                    </div>
+                    <button id="settings-btn" class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center" aria-label="Configurações"><i class="fas fa-cog text-slate-500"></i></button>
+                </div>
             </div>
 
             <div class="space-y-6">
@@ -274,6 +282,12 @@
                 appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
             };
 
+            // Log Firebase configuration (without sensitive data)
+            console.log('🔧 Configuração Firebase carregada:', {
+                projectId: firebaseConfig.projectId,
+                authDomain: firebaseConfig.authDomain
+            });
+
             // Initialize Firebase
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
@@ -328,6 +342,59 @@
             const formatCurrency = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+
+            // Firebase connection check and auto-reconnection
+            const checkFirebaseConnection = async () => {
+                try {
+                    console.log('🔍 Verificando conexão com Firebase...');
+                    // Try to access Firestore with a simple operation
+                    const testRef = collection(db, "test");
+                    await getDoc(doc(testRef, "connection-test"));
+                    console.log('✅ Conexão com Firebase OK');
+                    return true;
+                } catch (error) {
+                    console.error('❌ Problema de conexão com Firebase:', error);
+                    return false;
+                }
+            };
+
+            // Auto-reconnection function
+            const attemptReconnection = async (maxAttempts = 3) => {
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    console.log(`🔄 Tentativa de reconexão ${attempt}/${maxAttempts}`);
+                    if (await checkFirebaseConnection()) {
+                        console.log('✅ Reconexão bem-sucedida!');
+                        updateConnectionStatus(true);
+                        return true;
+                    }
+                    if (attempt < maxAttempts) {
+                        console.log(`⏳ Aguardando 2 segundos antes da próxima tentativa...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+                console.error('❌ Falha ao reconectar após todas as tentativas');
+                updateConnectionStatus(false);
+                return false;
+            };
+
+            // Update connection status indicator
+            const updateConnectionStatus = (isOnline) => {
+                const statusElement = document.getElementById('connection-status');
+                if (statusElement) {
+                    const indicator = statusElement.querySelector('div');
+                    const text = statusElement.querySelector('span');
+
+                    if (isOnline) {
+                        indicator.className = 'w-2 h-2 rounded-full bg-green-500';
+                        text.textContent = 'Online';
+                        statusElement.className = 'flex items-center space-x-1';
+                    } else {
+                        indicator.className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse';
+                        text.textContent = 'Offline';
+                        statusElement.className = 'flex items-center space-x-1';
+                    }
+                }
+            };
 
             // Loading state management
             const setSubmitButtonLoading = (loading) => {
@@ -478,27 +545,58 @@
             }
 
             async function startAppSession() {
-                await signInAnonymously(auth);
-                if (coupleId) {
-                    const coupleDoc = await getDoc(doc(db, "couples", coupleId));
-                    if (coupleDoc.exists()) {
-                        await setupRealtimeListener(coupleId);
-                        coupleIdDisplay.textContent = coupleId;
-                        coupleIdContainer.classList.remove('hidden');
-                        joinCoupleContainer.classList.add('hidden');
-                    } else {
-                        localStorage.removeItem('coupleId');
-                        coupleId = null;
-                        startAppSession(); // Retry
+                try {
+                    console.log('🔄 Iniciando sessão da aplicação...');
+                    console.log('👤 coupleId atual:', coupleId);
+
+                    // Check Firebase connection first
+                    const isConnected = await checkFirebaseConnection();
+                    updateConnectionStatus(isConnected);
+                    if (!isConnected) {
+                        throw new Error('Não foi possível conectar ao Firebase');
                     }
-                } else {
-                    joinCoupleContainer.classList.remove('hidden');
+
+                    await signInAnonymously(auth);
+                    console.log('✅ Autenticação anônima realizada com sucesso');
+
+                    if (coupleId) {
+                        console.log('🔍 Verificando documento do casal:', coupleId);
+                        const coupleDoc = await getDoc(doc(db, "couples", coupleId));
+                        if (coupleDoc.exists()) {
+                            console.log('✅ Documento do casal encontrado, configurando listener');
+                            await setupRealtimeListener(coupleId);
+                            coupleIdDisplay.textContent = coupleId;
+                            coupleIdContainer.classList.remove('hidden');
+                            joinCoupleContainer.classList.add('hidden');
+                            console.log('✅ Aplicação inicializada com sucesso');
+                            updateConnectionStatus(true);
+                        } else {
+                            console.log('❌ Documento do casal não encontrado, removendo coupleId');
+                            localStorage.removeItem('coupleId');
+                            coupleId = null;
+                            startAppSession(); // Retry
+                        }
+                    } else {
+                        console.log('📝 Nenhum coupleId encontrado, mostrando formulário de conexão');
+                        joinCoupleContainer.classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao iniciar sessão:', error);
+                    alert('Erro ao conectar com o servidor. Verifique sua conexão e tente novamente.');
                 }
             }
 
             async function createNewCoupleSpace() {
-                const newCoupleRef = await addDoc(collection(db, "couples"), { createdAt: serverTimestamp() });
-                setCoupleId(newCoupleRef.id);
+                try {
+                    console.log('🏠 Criando novo espaço de casal...');
+                    const newCoupleRef = await addDoc(collection(db, "couples"), { createdAt: serverTimestamp() });
+                    console.log('✅ Novo espaço criado com ID:', newCoupleRef.id);
+                    setCoupleId(newCoupleRef.id);
+                } catch (error) {
+                    console.error('❌ Erro ao criar espaço de casal:', error);
+                    alert('Erro ao criar espaço de casal. Verifique sua conexão e tente novamente.');
+                    throw error;
+                }
             }
 
             function setCoupleId(id) {
@@ -591,6 +689,16 @@
                     return;
                 }
 
+                // Validate coupleId before proceeding
+                if (!coupleId) {
+                    alert('Erro: Você não está conectado a um espaço de casal. Por favor, recarregue a página e tente novamente.');
+                    console.error('❌ Tentativa de salvar transação sem coupleId válido');
+                    return;
+                }
+
+                console.log('💾 Iniciando salvamento de transação...');
+                console.log('👤 coupleId:', coupleId);
+
                 setSubmitButtonLoading(true);
 
                 try {
@@ -632,8 +740,29 @@
                     }
                     closeTransactionModal();
                 } catch (error) {
-                    console.error('Erro ao salvar transação:', error);
-                    alert('Erro ao salvar transação. Tente novamente.');
+                    console.error('❌ Erro ao salvar transação:', error);
+                    console.error('🔍 Detalhes do erro:', {
+                        message: error.message,
+                        code: error.code,
+                        stack: error.stack,
+                        coupleId: coupleId,
+                        transactionData: baseTransactionData
+                    });
+
+                    // Provide more specific error messages based on error type
+                    let errorMessage = 'Erro ao salvar transação. Tente novamente.';
+
+                    if (error.message && error.message.includes('indexOf')) {
+                        errorMessage = 'Erro de conexão com o banco de dados. Verifique sua conexão com a internet.';
+                    } else if (error.code === 'permission-denied') {
+                        errorMessage = 'Erro de permissão. Você pode não ter acesso a este espaço de casal.';
+                    } else if (error.code === 'not-found') {
+                        errorMessage = 'Espaço de casal não encontrado. Tente recarregar a página.';
+                    } else if (error.code === 'unavailable') {
+                        errorMessage = 'Serviço temporariamente indisponível. Tente novamente em alguns instantes.';
+                    }
+
+                    alert(errorMessage);
                     // Keep form data for user to retry - modal stays open
                 } finally {
                     setSubmitButtonLoading(false);

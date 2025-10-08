@@ -149,6 +149,9 @@
                     <div id="connection-status" class="flex items-center space-x-1">
                         <div class="w-2 h-2 rounded-full bg-green-500"></div>
                         <span class="text-xs text-slate-500">Online</span>
+                        <button id="reconnect-btn" class="text-xs text-slate-400 hover:text-slate-600 ml-1" title="Reconectar">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
                     </div>
                     <button id="settings-btn" class="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center" aria-label="Configurações"><i class="fas fa-cog text-slate-500"></i></button>
                 </div>
@@ -288,6 +291,11 @@
                 authDomain: firebaseConfig.authDomain
             });
 
+            // Debug localStorage state
+            console.log('💾 Estado inicial do localStorage:');
+            console.log('- coupleId:', localStorage.getItem('coupleId'));
+            console.log('- Todos os itens:', Object.keys(localStorage));
+
             // Initialize Firebase
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
@@ -343,6 +351,49 @@
             const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
 
+            // Application state validation
+            const validateAppState = async () => {
+                console.log('🔍 Validando estado da aplicação...');
+                console.log('📊 Estado atual:', {
+                    coupleId: coupleId,
+                    coupleIdFromStorage: localStorage.getItem('coupleId'),
+                    isAuthenticated: !!auth.currentUser,
+                    transactionsCount: transactions.length,
+                    hasListener: !!transactionsUnsubscribe
+                });
+
+                if (!coupleId) {
+                    console.error('❌ coupleId está null ou undefined');
+                    console.log('🔄 Tentando recuperar sessão automaticamente...');
+
+                    // Try to recover session automatically
+                    if (await recoverSession()) {
+                        console.log('✅ Sessão recuperada automaticamente');
+                        return true;
+                    } else {
+                        console.error('❌ Falha na recuperação automática da sessão');
+                        return false;
+                    }
+                }
+
+                // Additional validation: check if couple document still exists
+                try {
+                    const coupleDoc = await getDoc(doc(db, "couples", coupleId));
+                    if (!coupleDoc.exists()) {
+                        console.error('❌ Documento do casal não existe mais');
+                        localStorage.removeItem('coupleId');
+                        coupleId = null;
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao validar documento do casal:', error);
+                    return false;
+                }
+
+                console.log('✅ Estado da aplicação validado com sucesso');
+                return true;
+            };
+
             // Firebase connection check and auto-reconnection
             const checkFirebaseConnection = async () => {
                 try {
@@ -394,6 +445,25 @@
                         statusElement.className = 'flex items-center space-x-1';
                     }
                 }
+            };
+
+            // Session recovery function
+            const recoverSession = async () => {
+                console.log('🔄 Tentando recuperar sessão...');
+
+                const storedCoupleId = localStorage.getItem('coupleId');
+                if (storedCoupleId && storedCoupleId !== coupleId) {
+                    console.log('✅ Sessão recuperada do localStorage:', storedCoupleId);
+                    coupleId = storedCoupleId;
+                    if (await checkFirebaseConnection()) {
+                        await setupRealtimeListener(coupleId);
+                        updateConnectionStatus(true);
+                        return true;
+                    }
+                }
+
+                console.log('❌ Não foi possível recuperar sessão');
+                return false;
             };
 
             // Loading state management
@@ -600,9 +670,17 @@
             }
 
             function setCoupleId(id) {
-                localStorage.setItem('coupleId', id);
-                coupleId = id;
-                startAppSession();
+                console.log('💾 Definindo coupleId:', id);
+                try {
+                    localStorage.setItem('coupleId', id);
+                    coupleId = id;
+                    console.log('✅ coupleId salvo no localStorage e variável');
+                    console.log('🔍 Verificando salvamento:', localStorage.getItem('coupleId'));
+                    startAppSession();
+                } catch (error) {
+                    console.error('❌ Erro ao salvar coupleId:', error);
+                    alert('Erro ao salvar sessão. Tente novamente.');
+                }
             }
             
             // ============================
@@ -689,12 +767,14 @@
                     return;
                 }
 
-                // Validate coupleId before proceeding
-                if (!coupleId) {
+                // Validate application state before proceeding
+                if (!validateAppState()) {
                     alert('Erro: Você não está conectado a um espaço de casal. Por favor, recarregue a página e tente novamente.');
-                    console.error('❌ Tentativa de salvar transação sem coupleId válido');
+                    console.error('❌ Estado da aplicação inválido - coupleId não encontrado');
                     return;
                 }
+
+                console.log('✅ Estado da aplicação validado com sucesso');
 
                 console.log('💾 Iniciando salvamento de transação...');
                 console.log('👤 coupleId:', coupleId);
@@ -841,6 +921,31 @@
 
             document.getElementById('copy-couple-id').addEventListener('click', () => {
                 navigator.clipboard.writeText(coupleIdDisplay.textContent).then(() => alert('Código copiado!'));
+            });
+
+            document.getElementById('reconnect-btn').addEventListener('click', async () => {
+                console.log('🔄 Usuário solicitou reconexão manual');
+                const reconnectBtn = document.getElementById('reconnect-btn');
+                const originalIcon = reconnectBtn.innerHTML;
+
+                // Show loading state
+                reconnectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                reconnectBtn.disabled = true;
+
+                try {
+                    if (await recoverSession()) {
+                        alert('✅ Reconexão realizada com sucesso!');
+                    } else {
+                        alert('❌ Não foi possível reconectar. Tente recarregar a página.');
+                    }
+                } catch (error) {
+                    console.error('Erro na reconexão manual:', error);
+                    alert('Erro na reconexão. Tente novamente.');
+                } finally {
+                    // Restore button state
+                    reconnectBtn.innerHTML = originalIcon;
+                    reconnectBtn.disabled = false;
+                }
             });
             
             // ============================

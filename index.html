@@ -272,7 +272,44 @@
         import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
 
+        // Sistema de Debug Avançado
+        const DebugLogger = {
+            logs: [],
+            startTime: Date.now(),
+
+            log: function(category, message, data = null) {
+                const timestamp = Date.now() - this.startTime;
+                const logEntry = {
+                    timestamp: timestamp,
+                    category: category,
+                    message: message,
+                    data: data,
+                    stack: new Error().stack
+                };
+
+                this.logs.push(logEntry);
+
+                // Também log no console com formato estruturado
+                console.log(`[${timestamp}ms] ${category}: ${message}`, data ? data : '');
+
+                // Manter apenas últimos 100 logs para não sobrecarregar memória
+                if (this.logs.length > 100) {
+                    this.logs.shift();
+                }
+            },
+
+            getLogs: function() {
+                return this.logs;
+            },
+
+            exportLogs: function() {
+                return JSON.stringify(this.logs, null, 2);
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
+            DebugLogger.log('INIT', '=== INICIANDO APLICAÇÃO ===');
+
             // ============================
             // FIREBASE CONFIGURATION
             // ============================
@@ -285,31 +322,120 @@
                 appId: "1:616125709991:web:a42cf60470f6a1e4c8e582"
             };
 
-            // Log Firebase configuration (without sensitive data)
-            console.log('🔧 Configuração Firebase carregada:', {
+            DebugLogger.log('FIREBASE', 'Configuração Firebase carregada', {
                 projectId: firebaseConfig.projectId,
                 authDomain: firebaseConfig.authDomain
             });
 
             // Debug localStorage state
-            console.log('💾 Estado inicial do localStorage:');
-            console.log('- coupleId:', localStorage.getItem('coupleId'));
-            console.log('- Todos os itens:', Object.keys(localStorage));
+            const initialCoupleId = localStorage.getItem('coupleId');
+            DebugLogger.log('STORAGE', 'Estado inicial do localStorage', {
+                coupleId: initialCoupleId,
+                allKeys: Object.keys(localStorage),
+                userAgent: navigator.userAgent.substring(0, 100)
+            });
 
             // Initialize Firebase
+            DebugLogger.log('FIREBASE', 'Inicializando Firebase...');
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
             const auth = getAuth(app);
+            DebugLogger.log('FIREBASE', 'Firebase inicializado com sucesso');
 
             // ============================
-            //  STATE & DATA
+            //  ROBUST STATE MANAGEMENT
             // ============================
-            let transactions = [];
-            let displayedDate = new Date();
-            let transactionToDeleteId = null;
-            let currentFilter = 'all';
-            let coupleId = localStorage.getItem('coupleId');
-            let transactionsUnsubscribe = null; 
+            DebugLogger.log('STATE', 'Inicializando sistema de gerenciamento de estado...');
+
+            // Sistema robusto de gerenciamento de estado
+            const AppState = {
+                _coupleId: localStorage.getItem('coupleId'),
+                _transactions: [],
+                _displayedDate: new Date(),
+                _transactionToDeleteId: null,
+                _currentFilter: 'all',
+                _transactionsUnsubscribe: null,
+                _isAuthenticated: false,
+
+                // Getters
+                get coupleId() { return this._coupleId; },
+                get transactions() { return this._transactions; },
+                get displayedDate() { return this._displayedDate; },
+                get transactionToDeleteId() { return this._transactionToDeleteId; },
+                get currentFilter() { return this._currentFilter; },
+                get transactionsUnsubscribe() { return this._transactionsUnsubscribe; },
+                get isAuthenticated() { return this._isAuthenticated; },
+
+                // Setters com validação e logs
+                set coupleId(value) {
+                    DebugLogger.log('STATE_SET', 'Definindo coupleId', {
+                        oldValue: this._coupleId,
+                        newValue: value,
+                        timestamp: Date.now()
+                    });
+
+                    if (value !== null && value !== undefined && value !== '') {
+                        this._coupleId = value;
+                        try {
+                            localStorage.setItem('coupleId', value);
+                            DebugLogger.log('STATE_SET', 'coupleId salvo no localStorage', value);
+                        } catch (error) {
+                            DebugLogger.log('ERROR', 'Erro ao salvar coupleId no localStorage', error);
+                        }
+                    } else {
+                        this._coupleId = null;
+                        try {
+                            localStorage.removeItem('coupleId');
+                            DebugLogger.log('STATE_SET', 'coupleId removido do localStorage');
+                        } catch (error) {
+                            DebugLogger.log('ERROR', 'Erro ao remover coupleId do localStorage', error);
+                        }
+                    }
+                },
+
+                set isAuthenticated(value) {
+                    DebugLogger.log('STATE_SET', 'Definindo isAuthenticated', {
+                        oldValue: this._isAuthenticated,
+                        newValue: value
+                    });
+                    this._isAuthenticated = value;
+                },
+
+                // Métodos utilitários
+                reset: function() {
+                    DebugLogger.log('STATE_RESET', 'Resetando estado da aplicação');
+                    this._transactions = [];
+                    this._displayedDate = new Date();
+                    this._transactionToDeleteId = null;
+                    this._currentFilter = 'all';
+                    if (this._transactionsUnsubscribe) {
+                        this._transactionsUnsubscribe();
+                        this._transactionsUnsubscribe = null;
+                    }
+                },
+
+                getSnapshot: function() {
+                    return {
+                        coupleId: this._coupleId,
+                        transactionsCount: this._transactions.length,
+                        displayedDate: this._displayedDate.toISOString(),
+                        currentFilter: this._currentFilter,
+                        isAuthenticated: this._isAuthenticated,
+                        hasListener: !!this._transactionsUnsubscribe,
+                        timestamp: Date.now()
+                    };
+                }
+            };
+
+            // Referências globais para compatibilidade (mas usando AppState internamente)
+            let coupleId = AppState.coupleId;
+            let transactions = AppState.transactions;
+            let displayedDate = AppState.displayedDate;
+            let transactionToDeleteId = AppState.transactionToDeleteId;
+            let currentFilter = AppState.currentFilter;
+            let transactionsUnsubscribe = AppState.transactionsUnsubscribe;
+
+            DebugLogger.log('STATE', 'Estado inicial definido', AppState.getSnapshot());
 
             const categories = { 
                 expense: ['Moradia', 'Alimentação', 'Transporte', 'Contas', 'Lazer', 'Saúde', 'Educação', 'Vestuário', 'Outros'], 
@@ -351,46 +477,77 @@
             const formatDate = dateString => new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const getMonthYearString = date => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
 
+            // Sistema de Breakpoints para Debug
+            const Breakpoints = {
+                enabled: true,
+                points: new Set(),
+
+                add: function(point) {
+                    this.points.add(point);
+                },
+
+                remove: function(point) {
+                    this.points.delete(point);
+                },
+
+                check: function(point, data = null) {
+                    if (this.enabled && this.points.has(point)) {
+                        DebugLogger.log('BREAKPOINT', `🚫 BREAKPOINT: ${point}`, data);
+                        debugger; // Pausa execução no navegador
+                        return true;
+                    }
+                    return false;
+                }
+            };
+
             // Application state validation
             const validateAppState = async () => {
-                console.log('🔍 Validando estado da aplicação...');
-                console.log('📊 Estado atual:', {
-                    coupleId: coupleId,
-                    coupleIdFromStorage: localStorage.getItem('coupleId'),
-                    isAuthenticated: !!auth.currentUser,
-                    transactionsCount: transactions.length,
-                    hasListener: !!transactionsUnsubscribe
-                });
+                const validationStartTime = Date.now();
+                DebugLogger.log('VALIDATE', '=== VALIDANDO ESTADO DA APLICAÇÃO ===');
 
-                if (!coupleId) {
-                    console.error('❌ coupleId está null ou undefined');
-                    console.log('🔄 Tentando recuperar sessão automaticamente...');
+                const stateSnapshot = AppState.getSnapshot();
+                DebugLogger.log('VALIDATE', 'Estado atual da aplicação', stateSnapshot);
+
+                // Breakpoint para inspeção manual
+                Breakpoints.check('validateAppState', stateSnapshot);
+
+                if (!AppState.coupleId) {
+                    DebugLogger.log('VALIDATE', 'coupleId está null ou undefined, tentando recuperação');
 
                     // Try to recover session automatically
                     if (await recoverSession()) {
-                        console.log('✅ Sessão recuperada automaticamente');
+                        DebugLogger.log('VALIDATE', 'Sessão recuperada automaticamente');
                         return true;
                     } else {
-                        console.error('❌ Falha na recuperação automática da sessão');
+                        DebugLogger.log('VALIDATE', 'Falha na recuperação automática da sessão');
                         return false;
                     }
                 }
 
                 // Additional validation: check if couple document still exists
                 try {
-                    const coupleDoc = await getDoc(doc(db, "couples", coupleId));
+                    DebugLogger.log('VALIDATE', 'Verificando se documento do casal existe', { coupleId: AppState.coupleId });
+                    const coupleDoc = await getDoc(doc(db, "couples", AppState.coupleId));
+
                     if (!coupleDoc.exists()) {
-                        console.error('❌ Documento do casal não existe mais');
-                        localStorage.removeItem('coupleId');
-                        coupleId = null;
+                        DebugLogger.log('VALIDATE', 'Documento do casal não existe mais, limpando estado');
+                        AppState.coupleId = null; // Isso automaticamente limpa o localStorage
                         return false;
                     }
+
+                    DebugLogger.log('VALIDATE', 'Documento do casal validado com sucesso');
                 } catch (error) {
-                    console.error('❌ Erro ao validar documento do casal:', error);
+                    DebugLogger.log('ERROR', 'Erro ao validar documento do casal', {
+                        message: error.message,
+                        code: error.code,
+                        coupleId: AppState.coupleId
+                    });
                     return false;
                 }
 
-                console.log('✅ Estado da aplicação validado com sucesso');
+                DebugLogger.log('VALIDATE', 'Estado da aplicação validado com sucesso', {
+                    duration: Date.now() - validationStartTime
+                });
                 return true;
             };
 
@@ -615,70 +772,147 @@
             }
 
             async function startAppSession() {
+                const sessionStartTime = Date.now();
+                DebugLogger.log('SESSION', '=== INICIANDO SESSÃO DA APLICAÇÃO ===');
+                DebugLogger.log('SESSION', 'Estado no início da sessão', {
+                    coupleId: coupleId,
+                    hasAuthUser: !!auth.currentUser,
+                    localStorageCoupleId: localStorage.getItem('coupleId')
+                });
+
                 try {
-                    console.log('🔄 Iniciando sessão da aplicação...');
-                    console.log('👤 coupleId atual:', coupleId);
+                    DebugLogger.log('SESSION', 'Verificando conexão Firebase...');
 
                     // Check Firebase connection first
                     const isConnected = await checkFirebaseConnection();
+                    DebugLogger.log('CONNECTION', 'Status da conexão Firebase', { isConnected });
                     updateConnectionStatus(isConnected);
+
                     if (!isConnected) {
                         throw new Error('Não foi possível conectar ao Firebase');
                     }
 
-                    await signInAnonymously(auth);
-                    console.log('✅ Autenticação anônima realizada com sucesso');
+                    DebugLogger.log('AUTH', 'Tentando autenticação anônima...');
+                    const authResult = await signInAnonymously(auth);
+                    DebugLogger.log('AUTH', 'Autenticação anônima realizada', {
+                        uid: authResult.user?.uid,
+                        isAnonymous: authResult.user?.isAnonymous
+                    });
 
-                    if (coupleId) {
-                        console.log('🔍 Verificando documento do casal:', coupleId);
-                        const coupleDoc = await getDoc(doc(db, "couples", coupleId));
+                    const currentCoupleId = coupleId || localStorage.getItem('coupleId');
+                    DebugLogger.log('SESSION', 'coupleId após autenticação', {
+                        variableCoupleId: coupleId,
+                        storageCoupleId: localStorage.getItem('coupleId'),
+                        currentCoupleId: currentCoupleId
+                    });
+
+                    if (currentCoupleId) {
+                        DebugLogger.log('COUPLE', 'Verificando documento do casal', { coupleId: currentCoupleId });
+
+                        const coupleDoc = await getDoc(doc(db, "couples", currentCoupleId));
+                        DebugLogger.log('COUPLE', 'Documento do casal verificado', {
+                            exists: coupleDoc.exists(),
+                            id: coupleDoc.id,
+                            data: coupleDoc.data()
+                        });
+
                         if (coupleDoc.exists()) {
-                            console.log('✅ Documento do casal encontrado, configurando listener');
-                            await setupRealtimeListener(coupleId);
-                            coupleIdDisplay.textContent = coupleId;
-                            coupleIdContainer.classList.remove('hidden');
-                            joinCoupleContainer.classList.add('hidden');
-                            console.log('✅ Aplicação inicializada com sucesso');
+                            DebugLogger.log('LISTENER', 'Configurando listener de transações...');
+                            await setupRealtimeListener(currentCoupleId);
+
+                            // Atualizar UI
+                            if (coupleIdDisplay) coupleIdDisplay.textContent = currentCoupleId;
+                            if (coupleIdContainer) coupleIdContainer.classList.remove('hidden');
+                            if (joinCoupleContainer) joinCoupleContainer.classList.add('hidden');
+
+                            DebugLogger.log('SESSION', 'Aplicação inicializada com sucesso', {
+                                duration: Date.now() - sessionStartTime,
+                                coupleId: currentCoupleId
+                            });
                             updateConnectionStatus(true);
                         } else {
-                            console.log('❌ Documento do casal não encontrado, removendo coupleId');
+                            DebugLogger.log('COUPLE', 'Documento do casal não encontrado, limpando dados');
                             localStorage.removeItem('coupleId');
                             coupleId = null;
+                            DebugLogger.log('SESSION', 'Tentando iniciar sessão novamente...');
                             startAppSession(); // Retry
+                            return;
                         }
                     } else {
-                        console.log('📝 Nenhum coupleId encontrado, mostrando formulário de conexão');
-                        joinCoupleContainer.classList.remove('hidden');
+                        DebugLogger.log('COUPLE', 'Nenhum coupleId encontrado, mostrando formulário');
+                        if (joinCoupleContainer) joinCoupleContainer.classList.remove('hidden');
                     }
                 } catch (error) {
-                    console.error('❌ Erro ao iniciar sessão:', error);
+                    DebugLogger.log('ERROR', 'Erro ao iniciar sessão', {
+                        message: error.message,
+                        code: error.code,
+                        stack: error.stack,
+                        duration: Date.now() - sessionStartTime
+                    });
                     alert('Erro ao conectar com o servidor. Verifique sua conexão e tente novamente.');
                 }
             }
 
             async function createNewCoupleSpace() {
+                const createStartTime = Date.now();
+                DebugLogger.log('COUPLE_CREATE', '=== CRIANDO NOVO ESPAÇO DE CASAL ===');
+
                 try {
-                    console.log('🏠 Criando novo espaço de casal...');
-                    const newCoupleRef = await addDoc(collection(db, "couples"), { createdAt: serverTimestamp() });
-                    console.log('✅ Novo espaço criado com ID:', newCoupleRef.id);
+                    DebugLogger.log('COUPLE_CREATE', 'Tentando criar documento no Firestore...');
+
+                    const coupleData = { createdAt: serverTimestamp() };
+                    DebugLogger.log('COUPLE_CREATE', 'Dados do casal preparados', coupleData);
+
+                    const newCoupleRef = await addDoc(collection(db, "couples"), coupleData);
+                    DebugLogger.log('COUPLE_CREATE', 'Documento criado com sucesso', {
+                        id: newCoupleRef.id,
+                        path: newCoupleRef.path,
+                        duration: Date.now() - createStartTime
+                    });
+
                     setCoupleId(newCoupleRef.id);
                 } catch (error) {
-                    console.error('❌ Erro ao criar espaço de casal:', error);
+                    DebugLogger.log('ERROR', 'Erro ao criar espaço de casal', {
+                        message: error.message,
+                        code: error.code,
+                        stack: error.stack,
+                        duration: Date.now() - createStartTime
+                    });
                     alert('Erro ao criar espaço de casal. Verifique sua conexão e tente novamente.');
                     throw error;
                 }
             }
 
             function setCoupleId(id) {
-                console.log('💾 Definindo coupleId:', id);
+                const setIdStartTime = Date.now();
+                DebugLogger.log('SET_COUPLE_ID', '=== DEFININDO COUPLE ID ===', { id: id });
+
                 try {
-                    localStorage.setItem('coupleId', id);
-                    coupleId = id;
-                    console.log('✅ coupleId salvo no localStorage e variável');
-                    console.log('🔍 Verificando salvamento:', localStorage.getItem('coupleId'));
+                    if (!id || typeof id !== 'string') {
+                        throw new Error(`ID inválido: ${id}`);
+                    }
+
+                    // Usar o sistema de gerenciamento de estado
+                    AppState.coupleId = id;
+
+                    // Atualizar referências globais para compatibilidade
+                    coupleId = AppState.coupleId;
+
+                    DebugLogger.log('SET_COUPLE_ID', 'coupleId definido com sucesso', {
+                        id: id,
+                        appStateCoupleId: AppState.coupleId,
+                        globalCoupleId: coupleId,
+                        duration: Date.now() - setIdStartTime
+                    });
+
                     startAppSession();
                 } catch (error) {
-                    console.error('❌ Erro ao salvar coupleId:', error);
+                    DebugLogger.log('ERROR', 'Erro ao definir coupleId', {
+                        message: error.message,
+                        stack: error.stack,
+                        id: id,
+                        duration: Date.now() - setIdStartTime
+                    });
                     alert('Erro ao salvar sessão. Tente novamente.');
                 }
             }
@@ -760,34 +994,73 @@
             };
 
             transactionForm.addEventListener('submit', async (e) => {
+                const submitStartTime = Date.now();
+                DebugLogger.log('SUBMIT', '=== INICIANDO SUBMISSÃO DE FORMULÁRIO ===');
+
                 e.preventDefault();
 
                 // Validate form before processing
+                DebugLogger.log('SUBMIT', 'Validando formulário...');
                 if (!validateForm()) {
+                    DebugLogger.log('SUBMIT', 'Formulário inválido, abortando');
                     return;
                 }
+                DebugLogger.log('SUBMIT', 'Formulário validado com sucesso');
+
+                // Estado ANTES da validação
+                const preValidationState = {
+                    coupleId: coupleId,
+                    coupleIdFromStorage: localStorage.getItem('coupleId'),
+                    isAuthenticated: !!auth.currentUser,
+                    timestamp: Date.now()
+                };
+                DebugLogger.log('SUBMIT', 'Estado ANTES da validação', preValidationState);
 
                 // Validate application state before proceeding
-                if (!validateAppState()) {
+                DebugLogger.log('SUBMIT', 'Validando estado da aplicação...');
+                if (!await validateAppState()) {
+                    DebugLogger.log('SUBMIT', 'Estado inválido detectado');
                     alert('Erro: Você não está conectado a um espaço de casal. Por favor, recarregue a página e tente novamente.');
-                    console.error('❌ Estado da aplicação inválido - coupleId não encontrado');
                     return;
                 }
+                DebugLogger.log('SUBMIT', 'Estado da aplicação validado');
 
-                console.log('✅ Estado da aplicação validado com sucesso');
+                // Estado APÓS validação
+                const postValidationState = {
+                    coupleId: coupleId,
+                    coupleIdFromStorage: localStorage.getItem('coupleId'),
+                    isAuthenticated: !!auth.currentUser,
+                    timestamp: Date.now()
+                };
+                DebugLogger.log('SUBMIT', 'Estado APÓS validação', postValidationState);
 
-                console.log('💾 Iniciando salvamento de transação...');
-                console.log('👤 coupleId:', coupleId);
+                // Breakpoint antes do salvamento
+                Breakpoints.check('beforeSave', {
+                    coupleId: coupleId,
+                    formData: {
+                        description: document.getElementById('description').value,
+                        amount: document.getElementById('amount').value,
+                        category: categorySelect.value
+                    }
+                });
+
+                DebugLogger.log('SUBMIT', 'Iniciando processo de salvamento', {
+                    coupleId: coupleId,
+                    isEdit: !!document.getElementById('transaction-id').value
+                });
 
                 setSubmitButtonLoading(true);
 
                 try {
+                    DebugLogger.log('SAVE', 'Preparando dados da transação...');
+
                     const id = transactionIdInput.value;
                     const day = String(dateDaySelect.value).padStart(2, '0');
                     const month = String(parseInt(dateMonthSelect.value) + 1).padStart(2, '0');
                     const year = dateYearSelect.value;
                     const constructedDate = `${year}-${month}-${day}`;
                     const paymentType = document.querySelector('input[name="paymentType"]:checked').value;
+
                     const baseTransactionData = {
                         description: document.getElementById('description').value.trim(),
                         amount: parseFloat(document.getElementById('amount').value),
@@ -795,11 +1068,28 @@
                         type: typeSelect.value,
                         category: categorySelect.value
                     };
+
+                    DebugLogger.log('SAVE', 'Dados da transação preparados', {
+                        id: id,
+                        baseTransactionData: baseTransactionData,
+                        paymentType: paymentType,
+                        coupleId: coupleId
+                    });
+
+                    // Breakpoint antes da operação Firestore
+                    Breakpoints.check('beforeFirestoreOperation', {
+                        operation: id ? 'update' : 'create',
+                        coupleId: coupleId,
+                        transactionData: baseTransactionData
+                    });
                     if (id) {
+                        DebugLogger.log('SAVE', 'Atualizando transação existente', { id: id });
                         const docRef = doc(db, "couples", coupleId, "transactions", id);
                         await setDoc(docRef, { ...baseTransactionData }, { merge: true });
+                        DebugLogger.log('SAVE', 'Transação atualizada com sucesso');
                     } else {
                         if (paymentType === 'installment') {
+                            DebugLogger.log('SAVE', 'Criando transações parceladas...');
                             const totalInstallments = parseInt(document.getElementById('installments').value);
                             if (!totalInstallments || totalInstallments < 2 || totalInstallments > 60) {
                                 alert('Número de parcelas deve ser entre 2 e 60.');
@@ -811,11 +1101,23 @@
                                 const installmentDate = new Date(startDate);
                                 installmentDate.setMonth(startDate.getMonth() + (i - 1));
                                 const installmentData = { ...baseTransactionData, description: `${baseTransactionData.description} (${i}/${totalInstallments})`, date: installmentDate.toISOString().split('T')[0], status: 'pending', paymentType: 'installment' };
+                                DebugLogger.log('SAVE', `Criando parcela ${i}/${totalInstallments}`, installmentData);
                                 await addDoc(collection(db, "couples", coupleId, "transactions"), installmentData);
                             }
+                            DebugLogger.log('SAVE', 'Todas as parcelas criadas com sucesso');
                         } else {
                             const status = paymentType === 'single' ? 'paid' : 'pending';
-                            await addDoc(collection(db, "couples", coupleId, "transactions"), { ...baseTransactionData, status, paymentType });
+                            const finalTransactionData = { ...baseTransactionData, status, paymentType };
+                            DebugLogger.log('SAVE', 'Criando transação única', finalTransactionData);
+
+                            // Breakpoint antes da operação crítica
+                            Breakpoints.check('beforeAddDoc', {
+                                coupleId: coupleId,
+                                transactionData: finalTransactionData
+                            });
+
+                            await addDoc(collection(db, "couples", coupleId, "transactions"), finalTransactionData);
+                            DebugLogger.log('SAVE', 'Transação criada com sucesso');
                         }
                     }
                     closeTransactionModal();
@@ -949,13 +1251,75 @@
             });
             
             // ============================
+            //  DEBUGGING INTERFACE
+            // ============================
+
+            // Comandos especiais para debugging via console
+            window.debug = {
+                logger: DebugLogger,
+                breakpoints: Breakpoints,
+                appState: AppState,
+
+                // Ativar breakpoints específicos
+                enableBreakpoint: (point) => {
+                    Breakpoints.add(point);
+                    console.log(`✅ Breakpoint "${point}" ativado`);
+                },
+
+                // Desativar breakpoints
+                disableBreakpoint: (point) => {
+                    Breakpoints.remove(point);
+                    console.log(`❌ Breakpoint "${point}" desativado`);
+                },
+
+                // Listar breakpoints ativos
+                listBreakpoints: () => {
+                    console.log('🔍 Breakpoints ativos:', Array.from(Breakpoints.points));
+                },
+
+                // Forçar validação de estado
+                validateState: () => {
+                    return validateAppState();
+                },
+
+                // Recuperar sessão manualmente
+                recoverSession: () => {
+                    return recoverSession();
+                },
+
+                // Exportar logs para análise
+                exportLogs: () => {
+                    return DebugLogger.exportLogs();
+                },
+
+                // Reset completo do estado
+                resetState: () => {
+                    AppState.reset();
+                    coupleId = AppState.coupleId;
+                    transactions = AppState.transactions;
+                    console.log('🔄 Estado resetado');
+                }
+            };
+
+            console.log('🛠️ Sistema de debug ativado! Use window.debug para acessar comandos especiais.');
+
+            // ============================
             //  INITIALIZATION
             // ============================
+            DebugLogger.log('INIT', '=== INICIALIZANDO APLICAÇÃO ===');
+
             populateDateSelectors();
-            
+
+            DebugLogger.log('INIT', 'Verificando se deve criar novo espaço ou iniciar sessão', {
+                hasCoupleId: !!coupleId,
+                coupleId: coupleId
+            });
+
             if(!coupleId) {
+                DebugLogger.log('INIT', 'Nenhum coupleId encontrado, criando novo espaço');
                 createNewCoupleSpace();
             } else {
+                DebugLogger.log('INIT', 'coupleId encontrado, iniciando sessão', { coupleId });
                 startAppSession();
             }
         });
